@@ -2,7 +2,7 @@
 .venv
 build
 dist
-**/_pycache_
-_pycache_
-_pycache__/*
-chord_importer/__pycache__/*.pyc
+
+# Python cache
+__pycache__/
+*.py[cod]
