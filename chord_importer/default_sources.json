@@ -1,0 +1,352 @@
+{
+  "cifraclub": {
+    "name": "CifraClub",
+    "domain_patterns": ["cifraclub.com.br"],
+    "url_suffix": "/imprimir.html",
+    "title_selector": {
+      "css_selector": "#folha1 > div.cifra_header.js-cifra_header > h1 > a",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["h1", "title"],
+      "join_separator": null
+    },
+    "artist_selector": {
+      "css_selector": "#folha1 > div.cifra_header.js-cifra_header > h2 > a",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["h2", ".artist-name"]
+    },
+    "key_selector": {
+      "css_selector": "#cifra_tom > a",
+      "xpath_selector": null,
+      "regex_pattern": "",
+      "text_search": "",
+      "attribute": null,
+      "fallback_selectors": [".cifra_tom", "#cifra_tom"]
+    },
+    "capo_selector": {
+      "css_selector": "#cifra_capo > a",
+      "xpath_selector": null,
+      "regex_pattern": "",
+      "text_search": "",
+      "attribute": null,
+      "fallback_selectors": [".cifra_capo", "#cifra_capo"]
+    },
+    "content_selector": {
+      "css_selector": "div.wrap_pre.cifra-mono.cifra_cnt.js-cifra_content > pre",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [".cifra_cnt", ".song-content", ".lyrics"],
+      "join_separator": null
+    },
+    "composer_selector": {
+      "css_selector": ".composer-name",
+      "xpath_selector": null,
+      "regex_pattern": "Composição de\\s*(.+?)(?:\\.|$)",
+      "text_search": "Composição de",
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": ", "
+    },
+    "views_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": "([\\d.,]+)\\s*exibições",
+      "text_search": "exibições",
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "difficulty_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "instrument_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": "Cifra:\\s*(.+?)(?:\\n|$)",
+      "text_search": "Cifra:",
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "remove_scripts": true,
+    "remove_styles": true,
+    "encoding": "utf-8",
+    "timeout": 15
+  },
+  "letras": {
+    "name": "Letras.mus.br",
+    "domain_patterns": ["letras.mus.br"],
+    "url_suffix": "",
+    "title_selector": {
+      "css_selector": "h1.head-title",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["h1", ".song-title", ".title"]
+    },
+    "artist_selector": {
+      "css_selector": "h2.head-subtitle a",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["h2", ".artist-name", ".singer"]
+    },
+    "key_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "capo_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "content_selector": {
+      "css_selector": ".lyric-original",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [".lyrics", ".song-content", "pre"]
+    },
+    "composer_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "views_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "difficulty_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "instrument_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "remove_scripts": true,
+    "remove_styles": true,
+    "encoding": "utf-8",
+    "timeout": 15
+  },
+  "ultimate_guitar": {
+    "name": "Ultimate Guitar",
+    "domain_patterns": ["ultimate-guitar.com"],
+    "url_suffix": "",
+    "title_selector": {
+      "css_selector": "h1._3xXoI",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["h1", ".song-title", ".title"]
+    },
+    "artist_selector": {
+      "css_selector": ".t4Dkh a",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["h2", ".artist-name", ".singer"]
+    },
+    "key_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": "Key:\\s*([A-G][#b]?)",
+      "text_search": "Key:",
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "capo_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": "Capo:\\s*(\\d+)",
+      "text_search": "Capo:",
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "content_selector": {
+      "css_selector": "pre._3sw45",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["pre", ".tab-content", ".chord-content"]
+    },
+    "composer_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "views_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "difficulty_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "instrument_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "remove_scripts": true,
+    "remove_styles": true,
+    "encoding": "utf-8",
+    "timeout": 15
+  },
+  "generic": {
+    "name": "Generic",
+    "domain_patterns": ["*"],
+    "url_suffix": "",
+    "title_selector": {
+      "css_selector": "h1",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": ["title", ".song-title", ".title"]
+    },
+    "artist_selector": {
+      "css_selector": "h2",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [".artist", ".artist-name", ".singer"],
+      "join_separator": null
+    },
+    "key_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "capo_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "content_selector": {
+      "css_selector": "pre",
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [".lyrics", ".song-content", ".content"],
+      "join_separator": null
+    },
+    "composer_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "views_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "difficulty_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "instrument_selector": {
+      "css_selector": null,
+      "xpath_selector": null,
+      "regex_pattern": null,
+      "text_search": null,
+      "attribute": null,
+      "fallback_selectors": [],
+      "join_separator": null
+    },
+    "remove_scripts": true,
+    "remove_styles": true,
+    "encoding": "utf-8",
+    "timeout": 15
+  }
+}
