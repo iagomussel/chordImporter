@@ -103,8 +103,8 @@ class MusicTheoryEngine:
         if not chord_name:
             return None
         
-        # Basic chord parsing regex
-        chord_pattern = r'^([A-G][#b]?)([^/]*?)(?:/([A-G][#b]?))?$'
+        # Enhanced chord parsing regex to handle more variations
+        chord_pattern = r'^([A-G](?:[#b]|##|bb)?)([^/]*?)(?:/([A-G](?:[#b]|##|bb)?(?:\d+)?))?$'
         match = re.match(chord_pattern, chord_name.strip())
         
         if not match:
@@ -129,21 +129,24 @@ class MusicTheoryEngine:
     @classmethod
     def _determine_chord_quality(cls, quality_str: str) -> ChordQuality:
         """Determine chord quality from string."""
-        quality_str = quality_str.lower()
+        quality_str_lower = quality_str.lower()
+        quality_str_orig = quality_str  # Keep original for case-sensitive checks
         
-        if 'm7' in quality_str:
+        # Check for 7th chords first (more specific)
+        if 'm7' in quality_str_lower:
             return ChordQuality.MINOR7
-        elif 'maj7' in quality_str or 'M7' in quality_str:
+        elif 'maj7' in quality_str_lower or 'M7' in quality_str_orig or '7M' in quality_str_orig:
             return ChordQuality.MAJOR7
-        elif '7' in quality_str:
+        elif '7' in quality_str_lower:
             return ChordQuality.DOMINANT
-        elif 'm' in quality_str or 'min' in quality_str:
+        # Check for basic qualities
+        elif 'm' in quality_str_lower or 'min' in quality_str_lower:
             return ChordQuality.MINOR
-        elif 'dim' in quality_str or '°' in quality_str:
+        elif 'dim' in quality_str_lower or '°' in quality_str_orig or 'º' in quality_str_orig:
             return ChordQuality.DIMINISHED
-        elif 'aug' in quality_str or '+' in quality_str:
+        elif 'aug' in quality_str_lower or '+' in quality_str_orig:
             return ChordQuality.AUGMENTED
-        elif 'sus' in quality_str:
+        elif 'sus' in quality_str_lower:
             return ChordQuality.SUSPENDED
         else:
             return ChordQuality.MAJOR
@@ -171,12 +174,18 @@ class MusicTheoryEngine:
     
     @classmethod
     def transpose_chord(cls, chord_name: str, semitones: int) -> str:
-        """Transpose a chord by the given number of semitones."""
+        """Transpose a chord by the given number of semitones.
+        
+        Uses chord decomposition to ensure valid chord construction.
+        """
+        if not chord_name or semitones == 0:
+            return chord_name
+            
         chord_analysis = cls.parse_chord(chord_name)
         if not chord_analysis:
             return chord_name
         
-        # Transpose root
+        # Transpose root note
         new_root = cls.transpose_note(chord_analysis.root, semitones)
         
         # Transpose bass note if present
@@ -184,37 +193,156 @@ class MusicTheoryEngine:
         if chord_analysis.bass_note:
             new_bass = cls.transpose_note(chord_analysis.bass_note, semitones)
         
-        # Reconstruct chord name
-        quality_str = chord_name[len(chord_analysis.root):]
-        if chord_analysis.bass_note:
-            quality_str = quality_str.replace(f"/{chord_analysis.bass_note}", "")
+        # Reconstruct chord carefully
+        # Extract the quality/extension part (everything after the root, before bass)
+        root_len = len(chord_analysis.root)
+        quality_part = chord_name[root_len:]
         
-        new_chord = new_root + quality_str
+        # Remove bass note part if present
+        if chord_analysis.bass_note:
+            bass_part = f"/{chord_analysis.bass_note}"
+            if quality_part.endswith(bass_part):
+                quality_part = quality_part[:-len(bass_part)]
+        
+        # Build new chord name
+        new_chord = new_root + quality_part
+        
+        # Add bass note if present
         if new_bass:
             new_chord += f"/{new_bass}"
         
-        return new_chord
+        # Validate the result - check if it's a reasonable chord
+        if cls._is_valid_chord(new_chord):
+            return new_chord
+        else:
+            # If invalid, try alternative enharmonic spelling
+            alt_root = cls._get_enharmonic_equivalent(new_root)
+            if alt_root and alt_root != new_root:
+                alt_chord = alt_root + quality_part
+                if new_bass:
+                    alt_bass = cls._get_enharmonic_equivalent(new_bass)
+                    alt_chord += f"/{alt_bass or new_bass}"
+                
+                if cls._is_valid_chord(alt_chord):
+                    return alt_chord
+            
+            # If still invalid, return original
+            return chord_name
     
     @classmethod
     def transpose_note(cls, note: str, semitones: int) -> str:
-        """Transpose a single note by the given number of semitones."""
+        """Transpose a single note by the given number of semitones.
+        
+        Uses smart enharmonic selection to avoid double sharps/flats.
+        """
         if not note:
             return note
         
-        # Handle enharmonic equivalents
-        note_map = {
-            'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#'
+        # Parse note to separate root from accidentals
+        import re
+        match = re.match(r'^([A-G])((?:[#b]|##|bb)?)$', note)
+        if not match:
+            return note
+        
+        root = match.group(1)
+        accidental = match.group(2)
+        
+        # Convert to chromatic index
+        base_notes = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
+        if root not in base_notes:
+            return note
+        
+        current_index = base_notes[root]
+        
+        # Apply accidentals
+        if accidental == '#':
+            current_index += 1
+        elif accidental == 'b':
+            current_index -= 1
+        elif accidental == '##':
+            current_index += 2
+        elif accidental == 'bb':
+            current_index -= 2
+        
+        # Transpose
+        new_index = (current_index + semitones) % 12
+        
+        # Smart enharmonic selection - prefer naturals, then sharps, avoid double accidentals
+        enharmonic_options = {
+            0: ['C'],
+            1: ['C#', 'Db'],
+            2: ['D'],
+            3: ['D#', 'Eb'],
+            4: ['E'],
+            5: ['F'],
+            6: ['F#', 'Gb'],
+            7: ['G'],
+            8: ['G#', 'Ab'],
+            9: ['A'],
+            10: ['A#', 'Bb'],
+            11: ['B']
         }
         
-        # Normalize the note
-        normalized_note = note_map.get(note, note)
+        options = enharmonic_options.get(new_index, [cls.CHROMATIC_SCALE[new_index]])
         
-        try:
-            current_index = cls.CHROMATIC_SCALE.index(normalized_note)
-            new_index = (current_index + semitones) % 12
-            return cls.CHROMATIC_SCALE[new_index]
-        except ValueError:
-            return note
+        # Prefer natural notes first
+        for option in options:
+            if len(option) == 1:  # Natural note
+                return option
+        
+        # Then prefer sharps over flats (unless original was flat)
+        if 'b' in accidental:
+            # Original was flat, prefer flats
+            for option in options:
+                if 'b' in option:
+                    return option
+        
+        # Default to first option (usually sharp)
+        return options[0]
+    
+    @classmethod
+    def _is_valid_chord(cls, chord_name: str) -> bool:
+        """Check if a chord name represents a valid, commonly used chord."""
+        if not chord_name:
+            return False
+        
+        # Parse the chord
+        chord_analysis = cls.parse_chord(chord_name)
+        if not chord_analysis:
+            return False
+        
+        # Check for problematic combinations
+        root = chord_analysis.root
+        
+        # Avoid double sharps and double flats
+        if '##' in root or 'bb' in root:
+            return False
+        
+        # Avoid uncommon enharmonic spellings like B#, E#, Cb, Fb
+        uncommon_notes = {'B#', 'E#', 'Cb', 'Fb'}
+        if root in uncommon_notes:
+            return False
+        
+        # Check bass note too
+        if chord_analysis.bass_note:
+            if '##' in chord_analysis.bass_note or 'bb' in chord_analysis.bass_note:
+                return False
+            if chord_analysis.bass_note in uncommon_notes:
+                return False
+        
+        return True
+    
+    @classmethod
+    def _get_enharmonic_equivalent(cls, note: str) -> Optional[str]:
+        """Get the enharmonic equivalent of a note."""
+        enharmonic_map = {
+            'C#': 'Db', 'Db': 'C#',
+            'D#': 'Eb', 'Eb': 'D#',
+            'F#': 'Gb', 'Gb': 'F#',
+            'G#': 'Ab', 'Ab': 'G#',
+            'A#': 'Bb', 'Bb': 'A#'
+        }
+        return enharmonic_map.get(note)
     
     @classmethod
     def get_key_signature(cls, key_name: str) -> KeyAnalysis:
@@ -410,8 +538,8 @@ class TranspositionEngine:
         if not content:
             return TranspositionResult("", "", 0, {}, content)
         
-        # Find all chord patterns in the content
-        chord_pattern = r'\b([A-G][#b]?(?:maj|min|m|dim|aug|sus|add|\d)*(?:/[A-G][#b]?)?)\b'
+        # Find all chord patterns in the content - improved regex
+        chord_pattern = r'\b([A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?)?)\b'
         
         chord_mapping = {}
         transposed_content = content

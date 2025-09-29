@@ -65,7 +65,7 @@ def _is_chord_token(token: str) -> bool:
     """Heuristic check if a token looks like a chord name.
 
     Accepts forms like: A, Bb, C#, F#m, A4, G7, D/F#, Bm7(b5), Cadd9, G°.
-    Very permissive on suffixes to avoid false negatives.
+    Uses improved regex pattern for better chord detection.
     """
     t = token.strip()
     if not t:
@@ -76,11 +76,27 @@ def _is_chord_token(token: str) -> bool:
     # Must start with A-G
     if not t[0] in "ABCDEFG":
         return False
-    # Simple pattern: root + optional accidental + optional complex suffixes and slash bass
-    # We avoid importing 're' at module top; local import here keeps scope tight
+    
+    # Improved regex pattern for comprehensive chord detection
     import re as _re  # local import
-
-    pattern = _re.compile(r"^[A-G](?:#|b)?[a-zA-Z0-9+º°()#b]*?(?:/[A-G](?:#|b)?)?$")
+    
+    # Pattern breakdown:
+    # ^[A-G] - starts with note A-G
+    # (?:[#b]|##|bb)? - optional accidentals (sharp, flat, double sharp, double flat)
+    # (?:maj|min|m|dim|aug|sus|add|°|º|\+)? - optional chord quality
+    # (?:\d+)? - optional numbers (7, 9, 11, 13, etc.)
+    # (?:\([^)]*\))? - optional parentheses with content like (b5), (add9)
+    # (?:sus[24]?|add\d+|no\d+)* - optional extensions
+    # (?:/[A-G](?:[#b]|##|bb)?)? - optional bass note after slash
+    pattern = _re.compile(
+        r"^[A-G]"                           # Root note
+        r"(?:[#b]|##|bb)?"                  # Optional accidentals
+        r"(?:maj|min|m|dim|aug|sus|add|°|º|\+)?"  # Optional quality
+        r"(?:\d+)?"                         # Optional number
+        r"(?:\([^)]*\))?"                   # Optional parentheses
+        r"(?:sus[24]?|add\d+|no\d+)*"       # Optional extensions
+        r"(?:/[A-G](?:[#b]|##|bb)?)?$"      # Optional bass note
+    )
     return bool(pattern.match(t))
 
 
@@ -669,44 +685,7 @@ def format_cifraclub_export(song_data: dict) -> str:
         Formatted string with complete song information
     """
     lines = []
-    
-    # Header with song info
-    if song_data['title']:
-        lines.append(f"TITULO: {song_data['title']}")
-    
-    if song_data['artist']:
-        lines.append(f"ARTISTA: {song_data['artist']}")
-    
-    if song_data['key']:
-        lines.append(f"TOM: {song_data['key']}")
-        
-    if song_data.get('metadata', {}).get('original_key'):
-        lines.append(f"TOM ORIGINAL: {song_data['metadata']['original_key']}")
-    
-    if song_data['capo']:
-        lines.append(f"CAPOTRASTE: {song_data['capo']}")
-    
-    # Metadata section
-    metadata = song_data.get('metadata', {})
-    if metadata.get('composers'):
-        lines.append(f"COMPOSICAO: {metadata['composers']}")
-    
-    if metadata.get('views'):
-        lines.append(f"VISUALIZACOES: {metadata['views']}")
-    
-    if metadata.get('collaborators'):
-        lines.append(f"COLABORACAO: {metadata['collaborators']}")
-    
-    if metadata.get('instrument_info'):
-        lines.append(f"INSTRUMENTO: {metadata['instrument_info']}")
-    
-    # Separator
-    lines.append("")
-    lines.append("=" * 50)
-    lines.append("CIFRA E LETRA")
-    lines.append("=" * 50)
-    lines.append("")
-    
+
     # Main content (chords and lyrics)
     if song_data['content']:
         lines.append(song_data['content'])

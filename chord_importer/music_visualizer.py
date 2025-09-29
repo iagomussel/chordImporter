@@ -1,40 +1,20 @@
 """
-Music Visualizer Module
-Real-time and static visualization of musical elements including waveforms, 
-spectrograms, chord progressions, and music theory concepts.
+Simple Music Visualizer - Holirics Style
+A clean, functional chord and lyrics viewer with transposition.
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-from typing import Dict, List, Optional, Tuple, Any, Callable, TYPE_CHECKING
+from tkinter import ttk, messagebox, filedialog, font
+from typing import Dict, List, Optional, Tuple, Any
+import re
 import threading
 import time
-import numpy as np
-import math
-from dataclasses import dataclass
-from enum import Enum
-
-if TYPE_CHECKING:
-    from matplotlib.figure import Figure
 
 try:
-    import matplotlib.pyplot as plt
-    import matplotlib.patches as patches
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-    from matplotlib.figure import Figure
-    from matplotlib.animation import FuncAnimation
-    MATPLOTLIB_AVAILABLE = True
+    from music21 import pitch, interval
+    MUSIC21_AVAILABLE = True
 except ImportError:
-    MATPLOTLIB_AVAILABLE = False
-    # Create a dummy Figure class for type hints when matplotlib is not available
-    class Figure:
-        pass
-
-try:
-    import librosa
-    LIBROSA_AVAILABLE = True
-except ImportError:
-    LIBROSA_AVAILABLE = False
+    MUSIC21_AVAILABLE = False
 
 try:
     from .database import get_database
@@ -46,721 +26,8 @@ except ImportError:
     from chord_importer.song_utilities import MusicTheoryEngine
 
 
-class VisualizationType(Enum):
-    """Types of visualizations available."""
-    CIRCLE_OF_FIFTHS = "circle_of_fifths"
-    CHORD_PROGRESSION = "chord_progression"
-    FRETBOARD = "fretboard"
-    PIANO_KEYBOARD = "piano_keyboard"
-    WAVEFORM = "waveform"
-    SPECTROGRAM = "spectrogram"
-    CHROMAGRAM = "chromagram"
-    SCALE_DEGREES = "scale_degrees"
-
-
-@dataclass
-class VisualizationConfig:
-    """Configuration for visualizations."""
-    width: int = 800
-    height: int = 600
-    dpi: int = 100
-    background_color: str = "#ffffff"
-    primary_color: str = "#2196F3"
-    secondary_color: str = "#FF9800"
-    accent_color: str = "#4CAF50"
-    text_color: str = "#333333"
-    font_size: int = 12
-    title_font_size: int = 16
-
-
-class CircleOfFifthsVisualizer:
-    """Visualizer for the Circle of Fifths."""
-    
-    def __init__(self, config: VisualizationConfig):
-        self.config = config
-        self.keys = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'Ab', 'Eb', 'Bb', 'F']
-        self.minor_keys = ['Am', 'Em', 'Bm', 'F#m', 'C#m', 'G#m', 'D#m', 'A#m', 'Fm', 'Cm', 'Gm', 'Dm']
-    
-    def create_visualization(self, fig: "Figure", highlighted_keys: List[str] = None) -> None:
-        """Create circle of fifths visualization."""
-        ax = fig.add_subplot(111)
-        ax.set_xlim(-1.5, 1.5)
-        ax.set_ylim(-1.5, 1.5)
-        ax.set_aspect('equal')
-        ax.axis('off')
-        
-        # Draw outer circle (major keys)
-        outer_radius = 1.2
-        for i, key in enumerate(self.keys):
-            angle = i * 2 * math.pi / 12 - math.pi / 2
-            x = outer_radius * math.cos(angle)
-            y = outer_radius * math.sin(angle)
-            
-            # Highlight if in highlighted keys
-            color = self.config.accent_color if highlighted_keys and key in highlighted_keys else self.config.primary_color
-            
-            # Draw key circle
-            circle = patches.Circle((x, y), 0.15, facecolor=color, edgecolor='black', linewidth=2)
-            ax.add_patch(circle)
-            
-            # Add key label
-            ax.text(x, y, key, ha='center', va='center', fontsize=self.config.font_size, 
-                   fontweight='bold', color='white')
-        
-        # Draw inner circle (minor keys)
-        inner_radius = 0.8
-        for i, key in enumerate(self.minor_keys):
-            angle = i * 2 * math.pi / 12 - math.pi / 2
-            x = inner_radius * math.cos(angle)
-            y = inner_radius * math.sin(angle)
-            
-            # Highlight if in highlighted keys
-            color = self.config.accent_color if highlighted_keys and key in highlighted_keys else self.config.secondary_color
-            
-            # Draw key circle
-            circle = patches.Circle((x, y), 0.12, facecolor=color, edgecolor='black', linewidth=1)
-            ax.add_patch(circle)
-            
-            # Add key label
-            ax.text(x, y, key, ha='center', va='center', fontsize=self.config.font_size-2, 
-                   fontweight='bold', color='white')
-        
-        # Add title
-        ax.text(0, -1.4, 'Circle of Fifths', ha='center', va='center', 
-               fontsize=self.config.title_font_size, fontweight='bold')
-        
-        # Add legend
-        ax.text(1.3, 1.2, 'Major Keys', ha='left', va='center', fontsize=10, 
-               bbox=dict(boxstyle="round,pad=0.3", facecolor=self.config.primary_color, alpha=0.7))
-        ax.text(1.3, 1.0, 'Minor Keys', ha='left', va='center', fontsize=10,
-               bbox=dict(boxstyle="round,pad=0.3", facecolor=self.config.secondary_color, alpha=0.7))
-
-
-class ChordProgressionVisualizer:
-    """Visualizer for chord progressions."""
-    
-    def __init__(self, config: VisualizationConfig):
-        self.config = config
-    
-    def create_visualization(self, fig: "Figure", chords: List[str], key: str = None) -> None:
-        """Create chord progression visualization optimized for live performance."""
-        ax = fig.add_subplot(111)
-        
-        if not chords:
-            ax.text(0.5, 0.5, 'No chord progression to display\nLoad a setlist or enter chords manually', 
-                   ha='center', va='center', transform=ax.transAxes, 
-                   fontsize=self.config.font_size + 4, color='#666666')
-            return
-        
-        # Create large, clear chord boxes for stage visibility
-        num_chords = len(chords)
-        
-        # Determine layout based on number of chords
-        if num_chords <= 4:
-            # Single row for 4 or fewer chords
-            cols = num_chords
-            rows = 1
-        elif num_chords <= 8:
-            # Two rows for 5-8 chords
-            cols = 4
-            rows = 2
-        else:
-            # Multiple rows for more chords
-            cols = 4
-            rows = (num_chords + 3) // 4
-        
-        box_width = 0.8 / cols
-        box_height = 0.6 / rows
-        
-        for i, chord in enumerate(chords):
-            row = i // cols
-            col = i % cols
-            
-            x = 0.1 + col * (0.8 / cols)
-            y = 0.7 - row * (0.6 / rows)
-            
-            # Parse chord for coloring
-            chord_analysis = MusicTheoryEngine.parse_chord(chord)
-            
-            # Choose color based on chord quality - high contrast for stage
-            if chord_analysis:
-                if chord_analysis.quality.value == 'major':
-                    color = '#2196F3'  # Bright blue for major
-                elif chord_analysis.quality.value == 'minor':
-                    color = '#FF5722'  # Orange-red for minor
-                elif 'dominant' in chord_analysis.quality.value:
-                    color = '#9C27B0'  # Purple for dominant
-                else:
-                    color = '#4CAF50'  # Green for other qualities
-            else:
-                color = '#607D8B'  # Blue-grey for unknown
-            
-            # Draw chord box with thick border for visibility
-            rect = patches.Rectangle((x, y), box_width * 0.9, box_height * 0.8, 
-                                   facecolor=color, edgecolor='black', linewidth=3)
-            ax.add_patch(rect)
-            
-            # Add chord label - large font for stage visibility
-            font_size = max(16, self.config.font_size + 8)
-            ax.text(x + (box_width * 0.45), y + (box_height * 0.5), chord, 
-                   ha='center', va='center', fontsize=font_size, 
-                   fontweight='bold', color='white')
-            
-            # Add Roman numeral if key is provided - smaller but visible
-            if key and chord_analysis:
-                roman = self._get_roman_numeral(chord, key)
-                ax.text(x + (box_width * 0.45), y + (box_height * 0.15), roman, 
-                       ha='center', va='center', fontsize=font_size - 4, 
-                       style='italic', color='white', alpha=0.8)
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-        
-        # Add title with key information - large and clear
-        title = f"Chord Progression"
-        if key:
-            title += f" - Key of {key}"
-        ax.text(0.5, 0.95, title, ha='center', va='center', transform=ax.transAxes,
-               fontsize=self.config.title_font_size + 4, fontweight='bold', color='#333333')
-        
-        # Add chord count info
-        ax.text(0.5, 0.05, f"{num_chords} chords", ha='center', va='center', 
-               transform=ax.transAxes, fontsize=self.config.font_size, 
-               color='#666666', style='italic')
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-    
-    def _get_roman_numeral(self, chord: str, key: str) -> str:
-        """Get roman numeral for chord in key (simplified)."""
-        # This is a simplified implementation
-        chord_root = chord[0] if chord else 'C'
-        key_root = key[0] if key else 'C'
-        
-        try:
-            key_index = MusicTheoryEngine.CHROMATIC_SCALE.index(key_root)
-            chord_index = MusicTheoryEngine.CHROMATIC_SCALE.index(chord_root)
-            interval = (chord_index - key_index) % 12
-            
-            roman_map = {
-                0: 'I', 2: 'ii', 4: 'iii', 5: 'IV', 
-                7: 'V', 9: 'vi', 11: 'vii°'
-            }
-            
-            return roman_map.get(interval, '?')
-        except ValueError:
-            return '?'
-
-
-class FretboardVisualizer:
-    """Visualizer for guitar fretboard."""
-    
-    def __init__(self, config: VisualizationConfig):
-        self.config = config
-        self.strings = ['E', 'A', 'D', 'G', 'B', 'E']  # Standard tuning
-        self.frets = 12
-    
-    def create_visualization(self, fig: "Figure", chord: str = None, scale: str = None) -> None:
-        """Create fretboard visualization."""
-        ax = fig.add_subplot(111)
-        
-        # Draw fretboard
-        fret_width = 0.8 / self.frets
-        string_height = 0.6 / len(self.strings)
-        
-        # Draw frets
-        for fret in range(self.frets + 1):
-            x = 0.1 + fret * fret_width
-            ax.plot([x, x], [0.1, 0.7], 'k-', linewidth=2 if fret == 0 else 1)
-        
-        # Draw strings
-        for string in range(len(self.strings)):
-            y = 0.1 + string * string_height
-            ax.plot([0.1, 0.9], [y, y], 'k-', linewidth=1)
-            
-            # Add string labels
-            ax.text(0.05, y, self.strings[string], ha='center', va='center',
-                   fontsize=self.config.font_size, fontweight='bold')
-        
-        # Add fret markers
-        fret_markers = [3, 5, 7, 9, 12]
-        for fret in fret_markers:
-            if fret <= self.frets:
-                x = 0.1 + (fret - 0.5) * fret_width
-                y = 0.4
-                marker_size = 200 if fret == 12 else 100
-                ax.scatter([x], [y], s=marker_size, c='lightgray', marker='o', alpha=0.5)
-        
-        # Highlight chord or scale notes
-        if chord:
-            self._highlight_chord(ax, chord, fret_width, string_height)
-        elif scale:
-            self._highlight_scale(ax, scale, fret_width, string_height)
-        
-        # Add title
-        title = "Guitar Fretboard"
-        if chord:
-            title += f" - {chord} Chord"
-        elif scale:
-            title += f" - {scale} Scale"
-        
-        ax.text(0.5, 0.85, title, ha='center', va='center', transform=ax.transAxes,
-               fontsize=self.config.title_font_size, fontweight='bold')
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 0.8)
-        ax.axis('off')
-    
-    def _highlight_chord(self, ax, chord: str, fret_width: float, string_height: float) -> None:
-        """Highlight chord notes on fretboard."""
-        # Simplified chord shapes (C major example)
-        chord_shapes = {
-            'C': [(0, 3), (1, 2), (2, 0), (3, 1), (4, 0), (5, 0)],  # String, Fret
-            'G': [(0, 3), (1, 2), (2, 0), (3, 0), (4, 3), (5, 3)],
-            'Am': [(0, 0), (1, 0), (2, 2), (3, 2), (4, 1), (5, 0)],
-            'F': [(0, 1), (1, 1), (2, 3), (3, 3), (4, 2), (5, 1)],
-        }
-        
-        shape = chord_shapes.get(chord, [])
-        for string, fret in shape:
-            if fret >= 0:  # -1 means don't play string
-                x = 0.1 + (fret + 0.5) * fret_width if fret > 0 else 0.05
-                y = 0.1 + string * string_height
-                ax.scatter([x], [y], s=150, c=self.config.accent_color, marker='o', 
-                          edgecolors='black', linewidth=2)
-    
-    def _highlight_scale(self, ax, scale: str, fret_width: float, string_height: float) -> None:
-        """Highlight scale notes on fretboard."""
-        # This would require more complex logic to map scale notes to fretboard positions
-        pass
-
-
-class PianoKeyboardVisualizer:
-    """Visualizer for piano keyboard."""
-    
-    def __init__(self, config: VisualizationConfig):
-        self.config = config
-        self.white_keys = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
-        self.black_keys = ['C#', 'D#', 'F#', 'G#', 'A#']
-    
-    def create_visualization(self, fig: "Figure", highlighted_notes: List[str] = None) -> None:
-        """Create piano keyboard visualization."""
-        ax = fig.add_subplot(111)
-        
-        # Draw white keys
-        white_key_width = 0.8 / len(self.white_keys)
-        for i, key in enumerate(self.white_keys):
-            x = 0.1 + i * white_key_width
-            
-            # Determine color
-            color = self.config.accent_color if highlighted_notes and key in highlighted_notes else 'white'
-            
-            # Draw key
-            rect = patches.Rectangle((x, 0.2), white_key_width * 0.9, 0.4,
-                                   facecolor=color, edgecolor='black', linewidth=2)
-            ax.add_patch(rect)
-            
-            # Add label
-            ax.text(x + white_key_width * 0.45, 0.1, key, ha='center', va='center',
-                   fontsize=self.config.font_size, fontweight='bold')
-        
-        # Draw black keys
-        black_key_positions = [0.5, 1.5, 3.5, 4.5, 5.5]  # Relative to white keys
-        for i, key in enumerate(self.black_keys):
-            if i < len(black_key_positions):
-                x = 0.1 + black_key_positions[i] * white_key_width
-                
-                # Determine color
-                color = self.config.accent_color if highlighted_notes and key in highlighted_notes else 'black'
-                
-                # Draw key
-                rect = patches.Rectangle((x, 0.35), white_key_width * 0.6, 0.25,
-                                       facecolor=color, edgecolor='black', linewidth=2)
-                ax.add_patch(rect)
-                
-                # Add label
-                text_color = 'white' if color == 'black' else 'black'
-                ax.text(x + white_key_width * 0.3, 0.47, key, ha='center', va='center',
-                       fontsize=self.config.font_size - 2, fontweight='bold', color=text_color)
-        
-        # Add title
-        ax.text(0.5, 0.8, 'Piano Keyboard', ha='center', va='center', transform=ax.transAxes,
-               fontsize=self.config.title_font_size, fontweight='bold')
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-
-
-class LiveCipherVisualizer:
-    """Visualizer for displaying song lyrics and chords in live performance mode."""
-    
-    def __init__(self, config: VisualizationConfig):
-        self.config = config
-        self.current_section = 0
-        self.sections = []
-        self.original_key = None
-        self.current_transpose = 0
-        self.chord_progression = []
-    
-    def create_visualization(self, fig: "Figure", song_content: str, title: str = "", artist: str = "", key: str = "", transpose: int = 0) -> None:
-        """Create live performance visualization optimized for musicians."""
-        ax = fig.add_subplot(111)
-        ax.clear()
-        
-        # Store original key and current transpose
-        if key and not self.original_key:
-            self.original_key = key
-        self.current_transpose = transpose
-        
-        # Calculate current key after transposition
-        current_key = self._transpose_key(key or self.original_key, transpose) if (key or self.original_key) else ""
-        
-        if not song_content:
-            self._display_no_content_message(ax, current_key)
-            return
-        
-        # Parse content and extract chord progression
-        self.sections = self._parse_song_sections(song_content)
-        self.chord_progression = self._extract_chord_progression(song_content)
-        
-        if not self.sections:
-            self._display_parse_error(ax)
-            return
-        
-        # Ensure current section is valid
-        if self.current_section >= len(self.sections):
-            self.current_section = 0
-        
-        # Display live performance interface
-        self._display_live_interface(ax, title, artist, current_key, transpose)
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-    
-    def _display_no_content_message(self, ax, current_key):
-        """Display message when no content is available."""
-        ax.text(0.5, 0.6, '🎵 LIVE MODE 🎵', ha='center', va='center', transform=ax.transAxes,
-               fontsize=28, fontweight='bold', color='#2196F3')
-        
-        if current_key:
-            ax.text(0.5, 0.5, f'Key: {current_key}', ha='center', va='center', transform=ax.transAxes,
-                   fontsize=20, fontweight='bold', color='#4CAF50')
-        
-        ax.text(0.5, 0.4, 'Load a song from setlist or enter chord progression', 
-               ha='center', va='center', transform=ax.transAxes, 
-               fontsize=16, color='#666666')
-        ax.axis('off')
-    
-    def _display_parse_error(self, ax):
-        """Display error message when content cannot be parsed."""
-        ax.text(0.5, 0.5, 'Unable to parse song content\nCheck format and try again', 
-               ha='center', va='center', transform=ax.transAxes, 
-               fontsize=18, color='#FF5722')
-        ax.axis('off')
-    
-    def _display_live_interface(self, ax, title, artist, current_key, transpose):
-        """Display the complete live performance interface."""
-        # Header with song info and key (top 20% of screen)
-        header_y = 0.95
-        
-        # Song title - large and prominent
-        if title:
-            ax.text(0.5, header_y, title, ha='center', va='top', transform=ax.transAxes,
-                   fontsize=26, fontweight='bold', color='#2196F3')
-            header_y -= 0.06
-        
-        # Artist
-        if artist:
-            ax.text(0.5, header_y, f"by {artist}", ha='center', va='top', transform=ax.transAxes,
-                   fontsize=16, style='italic', color='#666666')
-            header_y -= 0.05
-        
-        # Key and transpose info - very prominent for musicians
-        key_info = self._format_key_info(current_key, transpose)
-        ax.text(0.5, header_y, key_info, ha='center', va='top', transform=ax.transAxes,
-               fontsize=20, fontweight='bold', color='#4CAF50',
-               bbox=dict(boxstyle="round,pad=0.5", facecolor='#E8F5E8', alpha=0.8))
-        header_y -= 0.08
-        
-        # Chord progression bar (if available)
-        if self.chord_progression:
-            progression_text = self._format_chord_progression(self.chord_progression, transpose)
-            ax.text(0.5, header_y, f"Progression: {progression_text}", ha='center', va='top', 
-                   transform=ax.transAxes, fontsize=14, fontweight='bold', color='#9C27B0')
-            header_y -= 0.05
-        
-        # Section indicator
-        section = self.sections[self.current_section]
-        section_info = f"Section {self.current_section + 1}/{len(self.sections)}"
-        if section.get('name'):
-            section_info += f" - {section['name']}"
-        
-        ax.text(0.5, header_y, section_info, ha='center', va='top', transform=ax.transAxes,
-               fontsize=14, color='#FF5722', fontweight='bold')
-        
-        # Main content area (middle 60% of screen)
-        content_y = header_y - 0.05
-        self._display_section_content_live(ax, section, content_y, transpose)
-        
-        # Footer with navigation hints (bottom 10% of screen)
-        footer_text = "Navigation: ← → (sections)  |  Transpose: +/- buttons  |  F11 (fullscreen)"
-        ax.text(0.5, 0.02, footer_text, ha='center', va='bottom', transform=ax.transAxes,
-               fontsize=10, color='#999999', style='italic')
-    
-    def _format_key_info(self, current_key, transpose):
-        """Format key information with transpose indication."""
-        if not current_key:
-            return "Key: Not specified"
-        
-        if transpose == 0:
-            return f"Key: {current_key} (Original)"
-        elif transpose > 0:
-            return f"Key: {current_key} (+{transpose} semitones)"
-        else:
-            return f"Key: {current_key} ({transpose} semitones)"
-    
-    def _transpose_key(self, key, semitones):
-        """Transpose a key by the given number of semitones."""
-        if not key or semitones == 0:
-            return key
-        
-        # Simple key transposition (basic implementation)
-        try:
-            from .song_utilities import MusicTheoryEngine
-            return MusicTheoryEngine.transpose_chord(key, semitones)
-        except:
-            # Fallback: just return original key with indication
-            return key
-    
-    def _extract_chord_progression(self, content):
-        """Extract main chord progression from song content."""
-        chords = []
-        lines = content.split('\n')
-        
-        for line in lines[:10]:  # Check first 10 lines for main progression
-            if self._is_chord_line(line):
-                line_chords = self._extract_chords_from_line(line)
-                chords.extend(line_chords)
-                if len(chords) >= 8:  # Limit to first 8 chords for display
-                    break
-        
-        return chords[:8]  # Return max 8 chords for clean display
-    
-    def _extract_chords_from_line(self, line):
-        """Extract individual chords from a line."""
-        import re
-        chord_pattern = r'\b[A-G][#b]?[m]?[0-9]?[sus]?[add]?[0-9]?\b'
-        return re.findall(chord_pattern, line)
-    
-    def _format_chord_progression(self, chords, transpose):
-        """Format chord progression with transposition."""
-        if not chords:
-            return "No progression detected"
-        
-        transposed_chords = []
-        for chord in chords:
-            if transpose != 0:
-                try:
-                    from .song_utilities import MusicTheoryEngine
-                    transposed_chord = MusicTheoryEngine.transpose_chord(chord, transpose)
-                    transposed_chords.append(transposed_chord)
-                except:
-                    transposed_chords.append(chord)
-            else:
-                transposed_chords.append(chord)
-        
-        return " - ".join(transposed_chords)
-    
-    def _parse_song_sections(self, content: str) -> List[Dict]:
-        """Parse song content into sections."""
-        sections = []
-        lines = content.split('\n')
-        current_section = {'name': '', 'lines': []}
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                if current_section['lines']:
-                    # End current section on empty line
-                    sections.append(current_section)
-                    current_section = {'name': '', 'lines': []}
-                continue
-            
-            # Check if line is a section marker
-            if line.startswith('[') and line.endswith(']'):
-                # Save previous section if it has content
-                if current_section['lines']:
-                    sections.append(current_section)
-                # Start new section
-                current_section = {'name': line[1:-1], 'lines': []}
-            else:
-                current_section['lines'].append(line)
-        
-        # Add final section
-        if current_section['lines']:
-            sections.append(current_section)
-        
-        # If no sections found, create one big section
-        if not sections and lines:
-            sections.append({'name': 'Song', 'lines': [line.strip() for line in lines if line.strip()]})
-        
-        return sections
-    
-    def _display_section_content_live(self, ax, section: Dict, start_y: float, transpose: int = 0):
-        """Display section content optimized for live performance with transposition."""
-        lines = section['lines']
-        if not lines:
-            ax.text(0.5, start_y - 0.1, 'No content in this section', 
-                   ha='center', va='center', transform=ax.transAxes,
-                   fontsize=16, color='#999999', style='italic')
-            return
-        
-        # Calculate optimal layout for live performance
-        available_height = start_y - 0.15  # Leave more space for footer
-        max_lines = min(len(lines), 12)  # Limit lines for readability
-        line_spacing = available_height / max_lines if max_lines > 0 else 0.05
-        
-        # Larger fonts for stage visibility
-        base_font_size = max(14, min(20, int(available_height * 80 / max_lines)))
-        chord_font_size = base_font_size + 3
-        lyric_font_size = base_font_size
-        
-        current_y = start_y
-        
-        for i, line in enumerate(lines[:max_lines]):
-            if self._is_chord_line(line):
-                # Transpose chords in real-time if needed
-                transposed_line = self._transpose_chord_line(line, transpose) if transpose != 0 else line
-                
-                # Display chord line with high contrast for stage visibility
-                ax.text(0.5, current_y, transposed_line, ha='center', va='top', transform=ax.transAxes,
-                       fontsize=chord_font_size, fontweight='bold', color='#FF5722',
-                       fontfamily='monospace',
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor='#FFF3E0', alpha=0.7))
-            else:
-                # Display lyrics with good contrast
-                ax.text(0.5, current_y, line, ha='center', va='top', transform=ax.transAxes,
-                       fontsize=lyric_font_size, color='#212121',
-                       fontfamily='monospace')
-            
-            current_y -= line_spacing
-        
-        # If there are more lines, show indicator
-        if len(lines) > max_lines:
-            ax.text(0.5, current_y, f'... and {len(lines) - max_lines} more lines', 
-                   ha='center', va='top', transform=ax.transAxes,
-                   fontsize=12, color='#999999', style='italic')
-    
-    def _transpose_chord_line(self, line: str, semitones: int) -> str:
-        """Transpose all chords in a line by the given number of semitones."""
-        if semitones == 0:
-            return line
-        
-        import re
-        chord_pattern = r'\b[A-G][#b]?[m]?[0-9]?[sus]?[add]?[0-9]?\b'
-        
-        def transpose_match(match):
-            chord = match.group()
-            try:
-                from .song_utilities import MusicTheoryEngine
-                return MusicTheoryEngine.transpose_chord(chord, semitones)
-            except:
-                return chord  # Return original if transposition fails
-        
-        return re.sub(chord_pattern, transpose_match, line)
-    
-    def _is_chord_line(self, line: str) -> bool:
-        """Check if a line contains chords."""
-        # Simple heuristic: line with chord patterns
-        import re
-        # Look for chord patterns like C, Am, F#m, Bb7, etc.
-        chord_pattern = r'\b[A-G][#b]?[m]?[0-9]?[sus]?[add]?[0-9]?\b'
-        chords = re.findall(chord_pattern, line)
-        # If more than 30% of the line is chords, consider it a chord line
-        return len(' '.join(chords)) > len(line) * 0.3
-    
-    def next_section(self):
-        """Move to next section."""
-        if self.sections and self.current_section < len(self.sections) - 1:
-            self.current_section += 1
-            return True
-        return False
-    
-    def prev_section(self):
-        """Move to previous section."""
-        if self.sections and self.current_section > 0:
-            self.current_section -= 1
-            return True
-        return False
-    
-    def reset_section(self):
-        """Reset to first section."""
-        self.current_section = 0
-
-
-class AudioWaveformVisualizer:
-    """Visualizer for audio waveforms and spectrograms."""
-    
-    def __init__(self, config: VisualizationConfig):
-        self.config = config
-    
-    def create_waveform(self, fig: "Figure", audio_data: np.ndarray, sample_rate: int) -> None:
-        """Create waveform visualization."""
-        ax = fig.add_subplot(111)
-        
-        # Create time axis
-        time = np.linspace(0, len(audio_data) / sample_rate, len(audio_data))
-        
-        # Plot waveform
-        ax.plot(time, audio_data, color=self.config.primary_color, linewidth=0.5)
-        ax.set_xlabel('Time (seconds)')
-        ax.set_ylabel('Amplitude')
-        ax.set_title('Audio Waveform')
-        ax.grid(True, alpha=0.3)
-    
-    def create_spectrogram(self, fig: "Figure", audio_data: np.ndarray, sample_rate: int) -> None:
-        """Create spectrogram visualization."""
-        if not LIBROSA_AVAILABLE:
-            ax = fig.add_subplot(111)
-            ax.text(0.5, 0.5, 'librosa required for spectrogram', ha='center', va='center',
-                   transform=ax.transAxes)
-            return
-        
-        ax = fig.add_subplot(111)
-        
-        # Compute spectrogram
-        D = librosa.amplitude_to_db(np.abs(librosa.stft(audio_data)), ref=np.max)
-        
-        # Display spectrogram
-        img = librosa.display.specshow(D, y_axis='hz', x_axis='time', sr=sample_rate, ax=ax)
-        ax.set_title('Spectrogram')
-        fig.colorbar(img, ax=ax, format='%+2.0f dB')
-    
-    def create_chromagram(self, fig: "Figure", audio_data: np.ndarray, sample_rate: int) -> None:
-        """Create chromagram visualization."""
-        if not LIBROSA_AVAILABLE:
-            ax = fig.add_subplot(111)
-            ax.text(0.5, 0.5, 'librosa required for chromagram', ha='center', va='center',
-                   transform=ax.transAxes)
-            return
-        
-        ax = fig.add_subplot(111)
-        
-        # Compute chromagram
-        chroma = librosa.feature.chroma_stft(y=audio_data, sr=sample_rate)
-        
-        # Display chromagram
-        img = librosa.display.specshow(chroma, y_axis='chroma', x_axis='time', ax=ax)
-        ax.set_title('Chromagram')
-        fig.colorbar(img, ax=ax)
-
-
-class MusicVisualizerWindow:
-    """Main window for the Music Visualizer."""
+class SimpleMusicVisualizer:
+    """Simple, functional music visualizer for chords and lyrics."""
     
     def __init__(self, parent=None):
         self.parent = parent
@@ -777,64 +44,24 @@ class MusicVisualizerWindow:
         self.window.geometry("1200x800")
         self.window.resizable(True, True)
         
-        # Initialize components
-        self.config = VisualizationConfig()
-        self.current_audio = None
-        self.current_sample_rate = None
+        # State variables
+        self.current_song = None
+        self.current_content = ""
+        self.current_transpose = 0
+        self.auto_scroll = False
+        self.scroll_speed = 1.0
+        self.font_size = 14
+        self.chord_color = "#0066CC"
+        self.lyrics_color = "#333333"
+        self.highlight_color = "#FFFF99"
         
-        # Create visualizers
-        self.circle_visualizer = CircleOfFifthsVisualizer(self.config)
-        self.progression_visualizer = ChordProgressionVisualizer(self.config)
-        self.fretboard_visualizer = FretboardVisualizer(self.config)
-        self.keyboard_visualizer = PianoKeyboardVisualizer(self.config)
-        self.audio_visualizer = AudioWaveformVisualizer(self.config)
-        self.cipher_visualizer = LiveCipherVisualizer(self.config)
-        
-        # Live performance mode
-        self.live_mode = False
-        self.fullscreen_mode = False
-        self.current_setlist = None
-        self.current_song_index = 0
+        # Auto-scroll variables
+        self.scroll_thread = None
+        self.scroll_running = False
         
         self.setup_ui()
         self.center_window()
-        
-        # Bind keyboard shortcuts for section navigation
-        self.window.bind('<Left>', lambda e: self.prev_section())
-        self.window.bind('<Right>', lambda e: self.next_section())
-        self.window.bind('<Home>', lambda e: self.reset_sections())
-        self.window.focus_set()  # Make sure window can receive key events
-    
-    def create_menu_bar(self):
-        """Create menu bar with live performance options."""
-        menubar = tk.Menu(self.window)
-        self.window.config(menu=menubar)
-        
-        # View menu
-        view_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="View", menu=view_menu)
-        view_menu.add_command(label="Toggle Fullscreen", command=self.toggle_fullscreen, accelerator="F11")
-        view_menu.add_separator()
-        view_menu.add_command(label="Live Performance Mode", command=self.toggle_live_mode)
-        view_menu.add_separator()
-        view_menu.add_command(label="Load Setlist", command=self.load_setlist)
-        
-        # Performance menu
-        perf_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Performance", menu=perf_menu)
-        perf_menu.add_command(label="Next Song", command=self.next_song, accelerator="Ctrl+Right")
-        perf_menu.add_command(label="Previous Song", command=self.prev_song, accelerator="Ctrl+Left")
-        perf_menu.add_separator()
-        perf_menu.add_command(label="Transpose Up", command=lambda: self.transpose_current(1), accelerator="Ctrl+Up")
-        perf_menu.add_command(label="Transpose Down", command=lambda: self.transpose_current(-1), accelerator="Ctrl+Down")
-        
-        # Bind keyboard shortcuts
-        self.window.bind("<F11>", lambda e: self.toggle_fullscreen())
-        self.window.bind("<Control-Right>", lambda e: self.next_song())
-        self.window.bind("<Control-Left>", lambda e: self.prev_song())
-        self.window.bind("<Control-Up>", lambda e: self.transpose_current(1))
-        self.window.bind("<Control-Down>", lambda e: self.transpose_current(-1))
-        self.window.bind("<Escape>", lambda e: self.exit_fullscreen())
+        self.load_songs()
     
     def center_window(self):
         """Center the window on screen."""
@@ -847,1051 +74,496 @@ class MusicVisualizerWindow:
     
     def setup_ui(self):
         """Setup the user interface."""
-        # Create menu bar
-        self.create_menu_bar()
+        # Main container
+        main_frame = tk.Frame(self.window)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create main paned window
-        main_paned = ttk.PanedWindow(self.window, orient=tk.HORIZONTAL)
-        main_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Top controls
+        self.create_controls(main_frame)
         
-        # Left panel - Controls
-        left_frame = ttk.Frame(main_paned)
-        main_paned.add(left_frame, weight=1)
+        # Main display area
+        self.create_display_area(main_frame)
         
-        # Right panel - Visualization
-        right_frame = ttk.Frame(main_paned)
-        main_paned.add(right_frame, weight=3)
-        
-        self.setup_controls(left_frame)
-        self.setup_visualization_area(right_frame)
-        
-        # Initialize live performance components
-        self.setup_live_performance_components()
+        # Bottom controls
+        self.create_bottom_controls(main_frame)
     
-    def setup_controls(self, parent):
-        """Setup the control panel."""
-        # Create notebook for different control tabs
-        self.control_notebook = ttk.Notebook(parent)
-        self.control_notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    def create_controls(self, parent):
+        """Create top control panel."""
+        controls_frame = tk.Frame(parent)
+        controls_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # Live Performance tab (priority)
-        live_tab = ttk.Frame(self.control_notebook)
-        self.control_notebook.add(live_tab, text="🎤 Live")
-        self.create_live_performance_tab(live_tab)
+        # Song selection
+        song_frame = tk.Frame(controls_frame)
+        song_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # Visualization tab
-        viz_tab = ttk.Frame(self.control_notebook)
-        self.control_notebook.add(viz_tab, text="📊 Visualizations")
-        self.create_visualization_tab(viz_tab)
+        tk.Label(song_frame, text="Música:", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
         
-        # Audio tab
-        audio_tab = ttk.Frame(self.control_notebook)
-        self.control_notebook.add(audio_tab, text="🎵 Audio")
-        self.create_audio_tab(audio_tab)
-    
-    def create_audio_tab(self, parent):
-        """Create audio analysis controls tab."""
-        # Audio file loading section
-        file_frame = ttk.LabelFrame(parent, text="Audio File", padding="10")
-        file_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # File selection
-        file_select_frame = ttk.Frame(file_frame)
-        file_select_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.audio_file_var = tk.StringVar()
-        ttk.Label(file_select_frame, text="Audio File:").pack(side=tk.LEFT)
-        ttk.Entry(file_select_frame, textvariable=self.audio_file_var, state="readonly").pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
-        ttk.Button(file_select_frame, text="Browse", command=self.browse_audio_file).pack(side=tk.RIGHT)
-        
-        # Audio controls
-        controls_frame = ttk.Frame(file_frame)
-        controls_frame.pack(fill=tk.X)
-        
-        ttk.Button(controls_frame, text="Load Audio", command=self.load_audio_file).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(controls_frame, text="Clear", command=self.clear_audio).pack(side=tk.LEFT)
-        
-        # Audio visualization options
-        viz_frame = ttk.LabelFrame(parent, text="Audio Visualization", padding="10")
-        viz_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        self.audio_viz_type = tk.StringVar(value="waveform")
-        
-        ttk.Radiobutton(viz_frame, text="Waveform", variable=self.audio_viz_type, value="waveform").pack(anchor=tk.W)
-        ttk.Radiobutton(viz_frame, text="Spectrogram", variable=self.audio_viz_type, value="spectrogram").pack(anchor=tk.W)
-        ttk.Radiobutton(viz_frame, text="Chromagram", variable=self.audio_viz_type, value="chromagram").pack(anchor=tk.W)
-        
-        ttk.Button(viz_frame, text="Generate Visualization", command=self.generate_audio_visualization).pack(pady=(10, 0))
-        
-        # Audio info section
-        info_frame = ttk.LabelFrame(parent, text="Audio Information", padding="10")
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        self.audio_info_text = tk.Text(info_frame, height=8, state=tk.DISABLED)
-        info_scrollbar = ttk.Scrollbar(info_frame, orient=tk.VERTICAL, command=self.audio_info_text.yview)
-        self.audio_info_text.configure(yscrollcommand=info_scrollbar.set)
-        
-        self.audio_info_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        info_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
-    def create_live_performance_tab(self, parent):
-        """Create live performance controls tab."""
-        # Performance mode toggle
-        mode_frame = tk.LabelFrame(parent, text="Performance Mode", font=("Arial", 12, "bold"))
-        mode_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        self.live_mode_btn = tk.Button(
-            mode_frame,
-            text="🎤 Enter Live Mode",
-            command=self.toggle_live_mode,
-            bg="#FF5722",
-            fg="white",
-            font=("Arial", 12, "bold"),
-            relief="flat",
-            bd=0,
-            padx=20,
-            pady=10,
-            cursor="hand2"
-        )
-        self.live_mode_btn.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Setlist controls
-        setlist_frame = tk.LabelFrame(parent, text="Setlist", font=("Arial", 12, "bold"))
-        setlist_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Load setlist button
-        tk.Button(
-            setlist_frame,
-            text="📋 Load Setlist",
-            command=self.load_setlist,
-            bg="#2196F3",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            relief="flat",
-            bd=0,
-            padx=15,
-            pady=8,
-            cursor="hand2"
-        ).pack(fill=tk.X, padx=10, pady=5)
-        
-        # Current song info
-        self.current_song_label = tk.Label(
-            setlist_frame,
-            text="No setlist loaded",
-            font=("Arial", 10),
-            fg="#666666",
-            wraplength=200
-        )
-        self.current_song_label.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Navigation controls
-        nav_frame = tk.Frame(setlist_frame)
-        nav_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        tk.Button(
-            nav_frame,
-            text="⬅️ Previous",
-            command=self.prev_song,
-            bg="#4CAF50",
-            fg="white",
-            font=("Arial", 9, "bold"),
-            relief="flat",
-            bd=0,
-            padx=10,
-            pady=5,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        
-        tk.Button(
-            nav_frame,
-            text="Next ➡️",
-            command=self.next_song,
-            bg="#4CAF50",
-            fg="white",
-            font=("Arial", 9, "bold"),
-            relief="flat",
-            bd=0,
-            padx=10,
-            pady=5,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-        
-        # Transpose controls
-        # Live Performance Transpose Controls
-        transpose_frame = tk.LabelFrame(parent, text="🎵 Live Transpose", font=("Arial", 12, "bold"))
-        transpose_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Large transpose buttons for stage use
-        transpose_controls = tk.Frame(transpose_frame)
-        transpose_controls.pack(fill=tk.X, padx=10, pady=10)
-        
-        # -1 semitone button
-        tk.Button(
-            transpose_controls,
-            text="♭ -1 Semitone",
-            command=lambda: self.transpose_current(-1),
-            bg="#FF5722",
-            fg="white",
-            font=("Arial", 12, "bold"),
-            relief="flat",
-            bd=0,
-            padx=20,
-            pady=12,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        
-        # Current transpose status
-        self.transpose_label = tk.Label(
-            transpose_controls,
-            text="Original Key",
-            font=("Arial", 11, "bold"),
-            fg="#2196F3",
-            bg="#E3F2FD",
-            padx=15,
-            pady=8,
-            relief="solid",
-            bd=1
-        )
-        self.transpose_label.pack(side=tk.LEFT, padx=10)
-        
-        # +1 semitone button
-        tk.Button(
-            transpose_controls,
-            text="♯ +1 Semitone",
-            command=lambda: self.transpose_current(1),
-            bg="#4CAF50",
-            fg="white",
-            font=("Arial", 12, "bold"),
-            relief="flat",
-            bd=0,
-            padx=20,
-            pady=12,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-        
-        # Quick transpose shortcuts
-        quick_transpose = tk.Frame(transpose_frame)
-        quick_transpose.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        tk.Label(quick_transpose, text="Quick:", font=("Arial", 10)).pack(side=tk.LEFT)
-        
-        # Common transpose intervals
-        for interval, label in [(-5, "-5 (♭5)"), (-3, "-3 (♭3)"), (0, "Reset"), (3, "+3 (♯3)"), (5, "+5 (♯5)")]:
-            bg_color = "#607D8B" if interval == 0 else "#9C27B0"
-            tk.Button(
-                quick_transpose,
-                text=label,
-                command=lambda i=interval: self.set_transpose(i),
-                bg=bg_color,
-                fg="white",
-                font=("Arial", 9, "bold"),
-                relief="flat",
-                bd=0,
-                padx=8,
-                pady=4,
-                cursor="hand2"
-            ).pack(side=tk.LEFT, padx=2)
-        
-        # Fullscreen control
-        fullscreen_frame = tk.LabelFrame(parent, text="Display", font=("Arial", 12, "bold"))
-        fullscreen_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        tk.Button(
-            fullscreen_frame,
-            text="🖥️ Toggle Fullscreen (F11)",
-            command=self.toggle_fullscreen,
-            bg="#9C27B0",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            relief="flat",
-            bd=0,
-            padx=15,
-            pady=8,
-            cursor="hand2"
-        ).pack(fill=tk.X, padx=10, pady=10)
-        
-        # Section navigation controls (for Live Cipher mode)
-        section_frame = tk.LabelFrame(parent, text="Section Navigation", font=("Arial", 12, "bold"))
-        section_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        section_controls = tk.Frame(section_frame)
-        section_controls.pack(fill=tk.X, padx=10, pady=10)
-        
-        tk.Button(
-            section_controls,
-            text="◀ Previous Section",
-            command=self.prev_section,
-            bg="#9C27B0",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            relief="flat",
-            bd=0,
-            padx=15,
-            pady=8,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        
-        tk.Button(
-            section_controls,
-            text="Next Section ▶",
-            command=self.next_section,
-            bg="#9C27B0",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            relief="flat",
-            bd=0,
-            padx=15,
-            pady=8,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        
-        tk.Button(
-            section_controls,
-            text="🔄 Reset to Start",
-            command=self.reset_sections,
-            bg="#607D8B",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            relief="flat",
-            bd=0,
-            padx=15,
-            pady=8,
-            cursor="hand2"
-        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-    
-    def create_visualization_tab(self, parent):
-        """Create visualization controls tab."""
-        # Visualization type selection
-        viz_frame = tk.LabelFrame(parent, text="Visualization Type", font=("Arial", 12, "bold"))
-        viz_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        self.viz_type = tk.StringVar(value="chord_progression")  # Default to chord progression for live use
-        
-        viz_options = [
-            ("🎵 Chord Progression", "chord_progression"),
-            ("📜 Live Cipher", "live_cipher"),
-            ("🎸 Guitar Fretboard", "fretboard"),
-            ("🎹 Piano Keyboard", "piano_keyboard"),
-            ("⭕ Circle of Fifths", "circle_of_fifths"),
-            ("📊 Audio Waveform", "waveform"),
-            ("📈 Spectrogram", "spectrogram"),
-            ("🌈 Chromagram", "chromagram")
-        ]
-        
-        for text, value in viz_options:
-            tk.Radiobutton(viz_frame, text=text, variable=self.viz_type, value=value,
-                          command=self.on_visualization_type_changed, font=("Arial", 10)).pack(anchor=tk.W, padx=10, pady=2)
-        
-        # Input controls
-        input_frame = tk.LabelFrame(parent, text="Input", font=("Arial", 12, "bold"))
-        input_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Key selection
-        key_frame = tk.Frame(input_frame)
-        key_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        tk.Label(key_frame, text="Key:", font=("Arial", 10)).pack(side=tk.LEFT)
-        self.key_var = tk.StringVar(value="C")
-        key_combo = ttk.Combobox(key_frame, textvariable=self.key_var,
-                               values=MusicTheoryEngine.CHROMATIC_SCALE + [k + 'm' for k in MusicTheoryEngine.CHROMATIC_SCALE],
-                               state="readonly", width=8)
-        key_combo.pack(side=tk.LEFT, padx=(10, 0))
-        key_combo.bind("<<ComboboxSelected>>", self.on_input_changed)
-        
-        # Chord input
-        chord_frame = tk.Frame(input_frame)
-        chord_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        tk.Label(chord_frame, text="Chord:", font=("Arial", 10)).pack(side=tk.LEFT)
-        self.chord_var = tk.StringVar()
-        chord_entry = tk.Entry(chord_frame, textvariable=self.chord_var, font=("Arial", 10))
-        chord_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
-        chord_entry.bind("<KeyRelease>", self.on_input_changed)
-        
-        # Chord progression input
-        progression_frame = tk.Frame(input_frame)
-        progression_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        tk.Label(progression_frame, text="Progression:", font=("Arial", 10)).pack(anchor=tk.W)
-        self.progression_text = tk.Text(progression_frame, height=3, font=("Arial", 10))
-        self.progression_text.pack(fill=tk.X, pady=(5, 0))
-        self.progression_text.bind("<KeyRelease>", self.on_input_changed)
-        
-        # Audio file controls
-        audio_frame = tk.LabelFrame(parent, text="Audio File", font=("Arial", 12, "bold"))
-        audio_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        file_controls = tk.Frame(audio_frame)
-        file_controls.pack(fill=tk.X, padx=10, pady=10)
-        
-        tk.Button(file_controls, text="Load Audio File", command=self.load_audio_file,
-                 bg="#2196F3", fg="white", font=("Arial", 10, "bold")).pack(fill=tk.X)
-        
-        self.audio_info_label = tk.Label(audio_frame, text="No audio file loaded", 
-                                       font=("Arial", 9), wraplength=200)
-        self.audio_info_label.pack(padx=10, pady=(0, 10))
-        
-        # Song library integration
-        library_frame = tk.LabelFrame(parent, text="Song Library", font=("Arial", 12, "bold"))
-        library_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        tk.Label(library_frame, text="Select Song:", font=("Arial", 10)).pack(anchor=tk.W, padx=10, pady=(10, 5))
-        self.song_combo = ttk.Combobox(library_frame, state="readonly")
-        self.song_combo.pack(fill=tk.X, padx=10, pady=(0, 5))
+        self.song_combo = ttk.Combobox(song_frame, state="readonly", width=50)
+        self.song_combo.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
         self.song_combo.bind("<<ComboboxSelected>>", self.on_song_selected)
         
-        tk.Button(library_frame, text="Load Songs", command=self.load_songs,
-                 bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(fill=tk.X, padx=10, pady=(5, 10))
+        tk.Button(song_frame, text="Atualizar", command=self.load_songs,
+                 bg="#4CAF50", fg="white", font=("Arial", 9, "bold")).pack(side=tk.RIGHT, padx=(10, 0))
         
-        # Visualization controls
-        viz_controls_frame = tk.LabelFrame(parent, text="Visualization Controls", font=("Arial", 12, "bold"))
-        viz_controls_frame.pack(fill=tk.X, padx=10, pady=10)
+        # Transposition and display controls
+        control_frame = tk.Frame(controls_frame)
+        control_frame.pack(fill=tk.X)
         
-        tk.Button(viz_controls_frame, text="Update Visualization", command=self.update_visualization,
-                 bg="#FF9800", fg="white", font=("Arial", 12, "bold")).pack(fill=tk.X, padx=10, pady=10)
+        # Transposition
+        transpose_frame = tk.Frame(control_frame)
+        transpose_frame.pack(side=tk.LEFT)
         
-        tk.Button(viz_controls_frame, text="Export Image", command=self.export_visualization,
-                 bg="#9C27B0", fg="white", font=("Arial", 10, "bold")).pack(fill=tk.X, padx=10, pady=(0, 10))
+        tk.Label(transpose_frame, text="Transposição:", font=("Arial", 10)).pack(side=tk.LEFT)
         
-        # Load initial songs
-        self.load_songs()
+        tk.Button(transpose_frame, text="-", command=lambda: self.transpose(-1),
+                 width=3, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(5, 0))
+        
+        self.transpose_label = tk.Label(transpose_frame, text="0", font=("Arial", 12, "bold"),
+                                      width=3, relief=tk.SUNKEN, bg="white")
+        self.transpose_label.pack(side=tk.LEFT, padx=(2, 2))
+        
+        tk.Button(transpose_frame, text="+", command=lambda: self.transpose(1),
+                 width=3, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(0, 5))
+        
+        tk.Button(transpose_frame, text="Reset", command=self.reset_transpose,
+                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Font size
+        font_frame = tk.Frame(control_frame)
+        font_frame.pack(side=tk.LEFT, padx=(20, 0))
+        
+        tk.Label(font_frame, text="Tamanho:", font=("Arial", 10)).pack(side=tk.LEFT)
+        
+        tk.Button(font_frame, text="A-", command=lambda: self.change_font_size(-2),
+                 width=3, font=("Arial", 9)).pack(side=tk.LEFT, padx=(5, 0))
+        
+        tk.Button(font_frame, text="A+", command=lambda: self.change_font_size(2),
+                 width=3, font=("Arial", 9)).pack(side=tk.LEFT, padx=(2, 0))
+        
+        # Auto-scroll
+        scroll_frame = tk.Frame(control_frame)
+        scroll_frame.pack(side=tk.RIGHT)
+        
+        self.scroll_btn = tk.Button(scroll_frame, text="▶ Auto Scroll", command=self.toggle_auto_scroll,
+                                   bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
+        self.scroll_btn.pack(side=tk.RIGHT)
+        
+        tk.Label(scroll_frame, text="Velocidade:", font=("Arial", 10)).pack(side=tk.RIGHT, padx=(0, 5))
+        
+        self.speed_scale = tk.Scale(scroll_frame, from_=0.1, to=3.0, resolution=0.1,
+                                   orient=tk.HORIZONTAL, length=100, command=self.on_speed_changed)
+        self.speed_scale.set(1.0)
+        self.speed_scale.pack(side=tk.RIGHT, padx=(0, 5))
     
-    def setup_visualization_area(self, parent):
-        """Setup the visualization display area."""
-        if not MATPLOTLIB_AVAILABLE:
-            error_frame = tk.Frame(parent, bg="#ffebee")
-            error_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-            
-            tk.Label(error_frame, text="⚠️ Missing Dependency", 
-                    font=("Arial", 16, "bold"), fg="#c62828", bg="#ffebee").pack(pady=(20, 10))
-            tk.Label(error_frame, text="matplotlib library is required for visualizations",
-                    font=("Arial", 12), fg="#d32f2f", bg="#ffebee").pack(pady=5)
-            tk.Label(error_frame, text="Please install it with: pip install matplotlib",
-                    font=("Arial", 10), fg="#666666", bg="#ffebee").pack(pady=5)
-            return
+    def create_display_area(self, parent):
+        """Create main display area."""
+        display_frame = tk.Frame(parent, relief=tk.SUNKEN, bd=2)
+        display_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # Create matplotlib figure
-        self.fig = Figure(figsize=(10, 8), dpi=self.config.dpi)
-        self.fig.patch.set_facecolor(self.config.background_color)
+        # Create text widget with scrollbar
+        self.text_widget = tk.Text(display_frame, wrap=tk.WORD, font=("Consolas", self.font_size),
+                                  bg="white", fg=self.lyrics_color, padx=20, pady=20,
+                                  selectbackground=self.highlight_color)
         
-        # Create canvas
-        self.canvas = FigureCanvasTkAgg(self.fig, parent)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        scrollbar = tk.Scrollbar(display_frame, orient=tk.VERTICAL, command=self.text_widget.yview)
+        self.text_widget.configure(yscrollcommand=scrollbar.set)
         
-        # Add toolbar
-        toolbar = NavigationToolbar2Tk(self.canvas, parent)
-        toolbar.update()
+        self.text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Initial visualization
-        self.update_visualization()
+        # Configure text tags for styling
+        self.text_widget.tag_configure("chord", foreground=self.chord_color, font=("Consolas", self.font_size, "bold"))
+        self.text_widget.tag_configure("lyrics", foreground=self.lyrics_color, font=("Consolas", self.font_size))
+        self.text_widget.tag_configure("section", foreground="#666666", font=("Consolas", self.font_size, "bold"))
+        
+        # Bind mouse wheel
+        self.text_widget.bind("<MouseWheel>", self.on_mouse_wheel)
     
-    def on_visualization_type_changed(self):
-        """Handle visualization type change."""
-        self.update_visualization()
-    
-    def on_input_changed(self, event=None):
-        """Handle input change."""
-        # Auto-update visualization if enabled
-        viz_type = self.viz_type.get()
-        if viz_type in ["circle_of_fifths", "chord_progression", "fretboard", "piano_keyboard"]:
-            self.update_visualization()
-    
-    def on_song_selected(self, event=None):
-        """Handle song selection from library."""
-        selection = self.song_combo.get()
-        if not selection:
-            return
+    def create_bottom_controls(self, parent):
+        """Create bottom control panel."""
+        bottom_frame = tk.Frame(parent)
+        bottom_frame.pack(fill=tk.X)
         
-        try:
-            # Extract song title from selection
-            title = selection.split(" - ")[0]
-            songs = self.db.get_songs(search_term=title)
-            
-            if songs:
-                song = songs[0]
-                
-                # Update inputs
-                if song.get('key_signature'):
-                    self.key_var.set(song['key_signature'])
-                
-                if song.get('chord_progression'):
-                    self.progression_text.delete(1.0, tk.END)
-                    self.progression_text.insert(1.0, song['chord_progression'])
-                
-                # Update visualization
-                self.update_visualization()
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Error loading song: {str(e)}")
+        # Import/Export buttons
+        io_frame = tk.Frame(bottom_frame)
+        io_frame.pack(side=tk.LEFT)
+        
+        tk.Button(io_frame, text="Importar Arquivo", command=self.import_file,
+                 bg="#FF9800", fg="white", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        
+        tk.Button(io_frame, text="Exportar", command=self.export_content,
+                 bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Status info
+        status_frame = tk.Frame(bottom_frame)
+        status_frame.pack(side=tk.RIGHT)
+        
+        self.status_label = tk.Label(status_frame, text="Pronto", font=("Arial", 10))
+        self.status_label.pack(side=tk.RIGHT)
     
     def load_songs(self):
         """Load songs from database."""
         try:
             songs = self.db.get_songs()
-            song_names = [f"{song['title']} - {song.get('artist', 'Unknown')}" for song in songs]
+            song_names = []
+            self.song_data = {}
+            
+            for song in songs:
+                display_name = f"{song['title']} - {song.get('artist', 'Desconhecido')}"
+                song_names.append(display_name)
+                self.song_data[display_name] = song
+            
             self.song_combo['values'] = song_names
-        except Exception as e:
-            messagebox.showerror("Error", f"Error loading songs: {str(e)}")
-    
-    def load_audio_file(self):
-        """Load audio file for visualization."""
-        file_path = filedialog.askopenfilename(
-            title="Select Audio File",
-            filetypes=[
-                ("Audio files", "*.wav *.mp3 *.flac *.aac *.ogg"),
-                ("WAV files", "*.wav"),
-                ("All files", "*.*")
-            ]
-        )
-        
-        if not file_path:
-            return
-        
-        if not LIBROSA_AVAILABLE:
-            messagebox.showerror("Error", "librosa library is required for audio file loading.")
-            return
-        
-        try:
-            # Load audio file
-            self.current_audio, self.current_sample_rate = librosa.load(file_path, sr=22050)
-            
-            # Update info label
-            duration = len(self.current_audio) / self.current_sample_rate
-            self.audio_info_label.config(
-                text=f"Loaded: {file_path.split('/')[-1]}\nDuration: {duration:.1f}s\nSample Rate: {self.current_sample_rate}Hz"
-            )
-            
-            # Update visualization if audio type is selected
-            viz_type = self.viz_type.get()
-            if viz_type in ["waveform", "spectrogram", "chromagram"]:
-                self.update_visualization()
+            self.status_label.config(text=f"{len(songs)} músicas carregadas")
                 
         except Exception as e:
-            messagebox.showerror("Error", f"Error loading audio file: {str(e)}")
+            messagebox.showerror("Erro", f"Erro ao carregar músicas: {str(e)}")
     
-    def update_visualization(self):
-        """Update the current visualization."""
-        if not MATPLOTLIB_AVAILABLE:
+    def on_song_selected(self, event=None):
+        """Handle song selection."""
+        selection = self.song_combo.get()
+        if not selection or selection not in self.song_data:
             return
         
-        # Clear previous plot
-        self.fig.clear()
+        self.current_song = self.song_data[selection]
+        self.current_content = self.current_song.get('content') or self.current_song.get('lyrics') or ""
+        self.current_transpose = 0
         
-        viz_type = self.viz_type.get()
+        self.display_content()
+        self.update_transpose_display()
         
-        try:
-            if viz_type == "circle_of_fifths":
-                self.create_circle_of_fifths()
-            elif viz_type == "chord_progression":
-                self.create_chord_progression()
-            elif viz_type == "fretboard":
-                self.create_fretboard()
-            elif viz_type == "piano_keyboard":
-                self.create_piano_keyboard()
-            elif viz_type == "waveform":
-                self.create_waveform()
-            elif viz_type == "spectrogram":
-                self.create_spectrogram()
-            elif viz_type == "chromagram":
-                self.create_chromagram()
-            elif viz_type == "live_cipher":
-                self.create_live_cipher()
-            
-            # Refresh canvas
-            self.canvas.draw()
-            
-        except Exception as e:
-            # Show error in plot
-            ax = self.fig.add_subplot(111)
-            ax.text(0.5, 0.5, f"Error creating visualization:\n{str(e)}", 
-                   ha='center', va='center', transform=ax.transAxes,
-                   fontsize=12, color='red')
-            ax.axis('off')
-            self.canvas.draw()
+        # Update status
+        key_info = f" - Tom: {self.current_song.get('key_signature', 'N/A')}" if self.current_song.get('key_signature') else ""
+        self.status_label.config(text=f"Carregado: {self.current_song['title']}{key_info}")
     
-    def create_circle_of_fifths(self):
-        """Create circle of fifths visualization."""
-        key = self.key_var.get()
-        highlighted_keys = [key] if key else []
+    def display_content(self):
+        """Display the current song content with chord highlighting."""
+        if not self.current_content:
+            self.text_widget.delete(1.0, tk.END)
+            self.text_widget.insert(1.0, "Nenhuma música selecionada")
+            return
         
-        # Add related keys
-        if key:
-            key_analysis = MusicTheoryEngine.get_key_signature(key)
-            if hasattr(key_analysis, 'relative_key'):
-                highlighted_keys.append(key_analysis.relative_key)
+        # Clear current content
+        self.text_widget.delete(1.0, tk.END)
         
-        self.circle_visualizer.create_visualization(self.fig, highlighted_keys)
+        # Process content line by line
+        lines = self.current_content.split('\n')
+        
+        for line in lines:
+            if self.is_chord_line(line):
+                self.insert_chord_line(line)
+            elif self.is_section_line(line):
+                self.insert_section_line(line)
+            else:
+                self.insert_lyrics_line(line)
+            
+            self.text_widget.insert(tk.END, '\n')
+        
+        # Scroll to top
+        self.text_widget.see(1.0)
     
-    def create_chord_progression(self):
-        """Create chord progression visualization."""
-        progression_text = self.progression_text.get(1.0, tk.END).strip()
-        if not progression_text:
-            # Use default progression
-            chords = ['C', 'Am', 'F', 'G']
+    def is_chord_line(self, line: str) -> bool:
+        """Check if a line contains primarily chords."""
+        line = line.strip()
+        if not line:
+            return False
+        
+        # Skip metadata lines
+        if ':' in line and any(keyword in line.lower() for keyword in ['tom', 'capo', 'artista', 'titulo']):
+            return False
+        
+        # Use improved regex for chord detection
+        chord_pattern = r'(?<!\w)[A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?(?:\d+)?)?(?:\d+)?(?!\w)'
+        
+        # Split line into tokens and check how many are chords
+        tokens = [token for token in line.split() if token.strip()]
+        if not tokens:
+            return False
+        
+        # Count how many tokens are chords (ignoring non-musical tokens)
+        chord_tokens = 0
+        musical_tokens = 0
+        
+        for token in tokens:
+            # Skip standalone parentheses
+            if token.strip() in ['(', ')']:
+                continue
+            
+            # Remove non-musical characters and check if token is meaningful
+            clean_token = token.strip('()[]|.,-')
+            
+            # Skip common non-musical tokens
+            if not clean_token or clean_token.lower() in ['intro', 'verso', 'refrão', 'ponte', 'final', 'coda', 'chorus', 'bridge', 'solo']:
+                continue
+            
+            musical_tokens += 1
+            
+            # Check if clean token is a chord
+            if re.match(chord_pattern, clean_token):
+                chord_tokens += 1
+        
+        # If no valid musical tokens, return False
+        if musical_tokens == 0:
+            return False
+        
+        # If more than 70% of musical tokens are chords, consider it a chord line
+        return chord_tokens / musical_tokens > 0.7
+    
+    def is_section_line(self, line: str) -> bool:
+        """Check if a line is a section marker."""
+        line = line.strip().lower()
+        section_markers = ['verso', 'refrão', 'ponte', 'intro', 'solo', 'final', 'coda', 'chorus', 'bridge']
+        return any(marker in line for marker in section_markers) or line.startswith('[') and line.endswith(']')
+    
+    def insert_chord_line(self, line: str):
+        """Insert a chord line with proper formatting and transposition."""
+        if self.current_transpose != 0:
+            line = self.transpose_line(line)
+        
+        # Use regex for chord detection
+        self._insert_chord_line_with_regex(line)
+    
+    def _insert_chord_line_with_regex(self, line: str):
+        """Insert chord line using regex (fallback method)."""
+        chord_pattern = r'(?<!\w)[A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?(?:\d+)?)?(?:\d+)?(?!\w)'
+        
+        last_end = 0
+        for match in re.finditer(chord_pattern, line):
+            # Insert text before chord
+            if match.start() > last_end:
+                self.text_widget.insert(tk.END, line[last_end:match.start()], "lyrics")
+            
+            # Insert chord with highlighting
+            self.text_widget.insert(tk.END, match.group(), "chord")
+            last_end = match.end()
+        
+        # Insert remaining text
+        if last_end < len(line):
+            self.text_widget.insert(tk.END, line[last_end:], "lyrics")
+    
+    def insert_section_line(self, line: str):
+        """Insert a section line with special formatting."""
+        self.text_widget.insert(tk.END, line, "section")
+    
+    def insert_lyrics_line(self, line: str):
+        """Insert a regular lyrics line."""
+        self.text_widget.insert(tk.END, line, "lyrics")
+    
+    def transpose_line(self, line: str) -> str:
+        """Transpose all chords in a line."""
+        if MUSIC21_AVAILABLE:
+            return self._transpose_line_with_music21(line)
         else:
-            # Parse chord progression
-            chords = [chord.strip() for chord in progression_text.replace('-', ' ').split() if chord.strip()]
-        
-        key = self.key_var.get() if self.key_var.get() else None
-        self.progression_visualizer.create_visualization(self.fig, chords, key)
+            return self._transpose_line_with_fallback(line)
     
-    def create_fretboard(self):
-        """Create fretboard visualization."""
-        chord = self.chord_var.get().strip() if self.chord_var.get().strip() else None
-        self.fretboard_visualizer.create_visualization(self.fig, chord=chord)
-    
-    def create_piano_keyboard(self):
-        """Create piano keyboard visualization."""
-        chord = self.chord_var.get().strip()
-        highlighted_notes = []
-        
-        if chord:
-            # Parse chord and get notes (simplified)
-            chord_analysis = MusicTheoryEngine.parse_chord(chord)
-            if chord_analysis:
-                highlighted_notes = [chord_analysis.root]
-                # Add more chord tones based on quality
-                if chord_analysis.quality.value == 'major':
-                    highlighted_notes.extend([
-                        MusicTheoryEngine.transpose_note(chord_analysis.root, 4),
-                        MusicTheoryEngine.transpose_note(chord_analysis.root, 7)
-                    ])
-                elif chord_analysis.quality.value == 'minor':
-                    highlighted_notes.extend([
-                        MusicTheoryEngine.transpose_note(chord_analysis.root, 3),
-                        MusicTheoryEngine.transpose_note(chord_analysis.root, 7)
-                    ])
-        
-        self.keyboard_visualizer.create_visualization(self.fig, highlighted_notes)
-    
-    def create_waveform(self):
-        """Create waveform visualization."""
-        if self.current_audio is None:
-            ax = self.fig.add_subplot(111)
-            ax.text(0.5, 0.5, 'Load an audio file to view waveform', 
-                   ha='center', va='center', transform=ax.transAxes)
-            return
-        
-        self.audio_visualizer.create_waveform(self.fig, self.current_audio, self.current_sample_rate)
-    
-    def create_spectrogram(self):
-        """Create spectrogram visualization."""
-        if self.current_audio is None:
-            ax = self.fig.add_subplot(111)
-            ax.text(0.5, 0.5, 'Load an audio file to view spectrogram', 
-                   ha='center', va='center', transform=ax.transAxes)
-            return
-        
-        self.audio_visualizer.create_spectrogram(self.fig, self.current_audio, self.current_sample_rate)
-    
-    def create_chromagram(self):
-        """Create chromagram visualization."""
-        if self.current_audio is None:
-            ax = self.fig.add_subplot(111)
-            ax.text(0.5, 0.5, 'Load an audio file to view chromagram', 
-                   ha='center', va='center', transform=ax.transAxes)
-            return
-        
-        self.audio_visualizer.create_chromagram(self.fig, self.current_audio, self.current_sample_rate)
-    
-    def create_live_cipher(self):
-        """Create live cipher visualization for performance."""
-        # Get current song data
-        song_content = ""
-        title = ""
-        artist = ""
-        key = self.key_var.get()
-        
-        if self.setlist_songs and 0 <= self.current_song_index < len(self.setlist_songs):
-            song = self.setlist_songs[self.current_song_index]
-            song_content = song.get('content') or song.get('lyrics') or ""
-            title = song.get('title', '')
-            artist = song.get('artist', '')
-            if not key and song.get('key_signature'):
-                key = song['key_signature']
-        
-        # If no song from setlist, try to get content from manual input
-        if not song_content:
-            # Try to get content from progression text widget if it exists
-            if hasattr(self, 'progression_text'):
+    def _transpose_line_with_music21(self, line: str) -> str:
+        """Transpose line using music21 for note transposition and MusicTheoryEngine for chord logic."""
+        try:
+            # Use regex substitution to preserve spacing like the fallback method
+            chord_pattern = r'(?<!\w)[A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?(?:\d+)?)?(?:\d+)?(?!\w)'
+            
+            def transpose_match(match):
+                chord = match.group()
                 try:
-                    song_content = self.progression_text.get(1.0, tk.END).strip()
+                    # First try MusicTheoryEngine
+                    return MusicTheoryEngine.transpose_chord(chord, self.current_transpose)
                 except:
-                    pass
-        
-        # Pass current transpose value to the visualizer
-        transpose = getattr(self, 'current_transpose', 0)
-        self.cipher_visualizer.create_visualization(self.fig, song_content, title, artist, key, transpose)
+                    # If MusicTheoryEngine fails, try music21 for basic note transposition
+                    try:
+                        root_match = re.match(r'^([A-G][#b]?)', chord)
+                        if root_match:
+                            root_note = root_match.group(1)
+                            note_obj = pitch.Pitch(root_note)
+                            transposed_note = note_obj.transpose(interval.Interval(self.current_transpose))
+                            return chord.replace(root_note, str(transposed_note), 1)
+                    except:
+                        pass
+                    return chord  # Return original if all fails
+            
+            return re.sub(chord_pattern, transpose_match, line)
+        except:
+            # Fallback to original method
+            return self._transpose_line_with_fallback(line)
     
-    def export_visualization(self):
-        """Export current visualization as image."""
-        if not MATPLOTLIB_AVAILABLE:
-            messagebox.showerror("Error", "matplotlib is required for image export.")
-            return
+    def _transpose_line_with_fallback(self, line: str) -> str:
+        """Transpose line using fallback method."""
+        chord_pattern = r'(?<!\w)[A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?(?:\d+)?)?(?:\d+)?(?!\w)'
         
-        file_path = filedialog.asksaveasfilename(
-            title="Export Visualization",
-            defaultextension=".png",
+        def transpose_match(match):
+            chord = match.group()
+            try:
+                return MusicTheoryEngine.transpose_chord(chord, self.current_transpose)
+            except:
+                return chord  # Return original if transposition fails
+        
+        return re.sub(chord_pattern, transpose_match, line)
+    
+    def transpose(self, semitones: int):
+        """Transpose the current song."""
+        self.current_transpose += semitones
+        self.current_transpose = max(-12, min(12, self.current_transpose))  # Limit range
+        
+        self.update_transpose_display()
+        self.display_content()
+    
+    def reset_transpose(self):
+        """Reset transposition to original key."""
+        self.current_transpose = 0
+        self.update_transpose_display()
+        self.display_content()
+    
+    def update_transpose_display(self):
+        """Update the transpose display."""
+        if self.current_transpose == 0:
+            self.transpose_label.config(text="0", bg="white")
+        elif self.current_transpose > 0:
+            self.transpose_label.config(text=f"+{self.current_transpose}", bg="#E8F5E8")
+        else:
+            self.transpose_label.config(text=str(self.current_transpose), bg="#FFE8E8")
+    
+    def change_font_size(self, delta: int):
+        """Change the font size."""
+        self.font_size += delta
+        self.font_size = max(8, min(32, self.font_size))  # Limit range
+        
+        # Update font for all tags
+        new_font = ("Consolas", self.font_size)
+        chord_font = ("Consolas", self.font_size, "bold")
+        section_font = ("Consolas", self.font_size, "bold")
+        
+        self.text_widget.configure(font=new_font)
+        self.text_widget.tag_configure("chord", font=chord_font)
+        self.text_widget.tag_configure("lyrics", font=new_font)
+        self.text_widget.tag_configure("section", font=section_font)
+    
+    def toggle_auto_scroll(self):
+        """Toggle auto-scroll functionality."""
+        if self.auto_scroll:
+            self.stop_auto_scroll()
+        else:
+            self.start_auto_scroll()
+    
+    def start_auto_scroll(self):
+        """Start auto-scrolling."""
+        self.auto_scroll = True
+        self.scroll_running = True
+        self.scroll_btn.config(text="⏸ Pausar", bg="#f44336")
+        
+        def scroll_worker():
+            while self.scroll_running:
+                try:
+                    # Scroll down slowly
+                    self.text_widget.yview_scroll(1, "units")
+                    
+                    # Check if we've reached the end
+                    if self.text_widget.yview()[1] >= 1.0:
+                        self.stop_auto_scroll()
+                        break
+                    
+                    # Wait based on scroll speed
+                    time.sleep(2.0 / self.scroll_speed)
+                    
+                except:
+                    break
+        
+        self.scroll_thread = threading.Thread(target=scroll_worker, daemon=True)
+        self.scroll_thread.start()
+    
+    def stop_auto_scroll(self):
+        """Stop auto-scrolling."""
+        self.auto_scroll = False
+        self.scroll_running = False
+        self.scroll_btn.config(text="▶ Auto Scroll", bg="#2196F3")
+    
+    def on_speed_changed(self, value):
+        """Handle scroll speed change."""
+        self.scroll_speed = float(value)
+    
+    def on_mouse_wheel(self, event):
+        """Handle mouse wheel scrolling."""
+        # Stop auto-scroll if user manually scrolls
+        if self.auto_scroll:
+            self.stop_auto_scroll()
+        
+        # Scroll the text widget
+        self.text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    
+    def import_file(self):
+        """Import a chord/lyrics file."""
+        file_path = filedialog.askopenfilename(
+            title="Importar Arquivo de Cifra",
             filetypes=[
-                ("PNG files", "*.png"),
-                ("PDF files", "*.pdf"),
-                ("SVG files", "*.svg"),
-                ("All files", "*.*")
+                ("Arquivos de texto", "*.txt"),
+                ("Arquivos ChordPro", "*.cho *.crd"),
+                ("Todos os arquivos", "*.*")
             ]
         )
         
         if file_path:
             try:
-                self.fig.savefig(file_path, dpi=300, bbox_inches='tight')
-                messagebox.showinfo("Success", f"Visualization exported to {file_path}")
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                self.current_content = content
+                self.current_song = {
+                    'title': 'Arquivo Importado',
+                    'artist': 'Desconhecido',
+                    'content': content
+                }
+                self.current_transpose = 0
+                
+                self.display_content()
+                self.update_transpose_display()
+                self.status_label.config(text=f"Importado: {file_path}")
+                
             except Exception as e:
-                messagebox.showerror("Error", f"Error exporting visualization: {str(e)}")
-
-
-    # Live Performance Methods
-    def setup_live_performance_components(self):
-        """Initialize live performance components."""
-        self.current_transpose = 0
-        self.setlist_songs = []
-        
-    def toggle_live_mode(self):
-        """Toggle live performance mode."""
-        self.live_mode = not self.live_mode
-        
-        if self.live_mode:
-            self.live_mode_btn.configure(
-                text="🎤 Exit Live Mode",
-                bg="#4CAF50"
-            )
-            # Switch to live cipher view for live performance
-            self.viz_type.set("live_cipher")
-            self.update_visualization()
-            # Focus on live tab
-            self.control_notebook.select(0)
-        else:
-            self.live_mode_btn.configure(
-                text="🎤 Enter Live Mode",
-                bg="#FF5722"
-            )
+                messagebox.showerror("Erro", f"Erro ao importar arquivo: {str(e)}")
     
-    def toggle_fullscreen(self):
-        """Toggle fullscreen mode."""
-        self.fullscreen_mode = not self.fullscreen_mode
+    def export_content(self):
+        """Export current content."""
+        if not self.current_content:
+            messagebox.showwarning("Aviso", "Nenhum conteúdo para exportar.")
+            return
         
-        if self.fullscreen_mode:
-            self.window.attributes('-fullscreen', True)
-            # Hide menu bar in fullscreen
-            self.window.config(menu="")
-        else:
-            self.window.attributes('-fullscreen', False)
-            # Restore menu bar
-            self.create_menu_bar()
-    
-    def exit_fullscreen(self):
-        """Exit fullscreen mode."""
-        if self.fullscreen_mode:
-            self.toggle_fullscreen()
-    
-    def load_setlist(self):
-        """Load a setlist from the database."""
-        try:
-            # Get setlists from database
-            setlists = self.db.get_setlists()
-            
-            if not setlists:
-                messagebox.showinfo("Info", "No setlists found. Create one in the Cipher Manager first.")
-                return
-            
-            # Create selection dialog
-            selection_window = tk.Toplevel(self.window)
-            selection_window.title("Select Setlist")
-            selection_window.geometry("400x300")
-            selection_window.transient(self.window)
-            selection_window.grab_set()
-            
-            tk.Label(selection_window, text="Select a setlist:", font=("Arial", 12, "bold")).pack(pady=10)
-            
-            # Listbox for setlists
-            listbox = tk.Listbox(selection_window, font=("Arial", 10))
-            listbox.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-            
-            for setlist in setlists:
-                listbox.insert(tk.END, f"{setlist['name']} ({setlist['song_count']} songs)")
-            
-            def on_select():
-                selection = listbox.curselection()
-                if selection:
-                    selected_setlist = setlists[selection[0]]
-                    self.load_setlist_songs(selected_setlist['id'], selected_setlist['name'])
-                    selection_window.destroy()
-            
-            tk.Button(
-                selection_window,
-                text="Load Setlist",
-                command=on_select,
-                bg="#2196F3",
-                fg="white",
-                font=("Arial", 10, "bold"),
-                relief="flat",
-                padx=20,
-                pady=8
-            ).pack(pady=10)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error loading setlists: {str(e)}")
-    
-    def load_setlist_songs(self, setlist_id, setlist_name):
-        """Load songs from a specific setlist."""
-        try:
-            self.setlist_songs = self.db.get_setlist_songs(setlist_id)
-            self.current_setlist = setlist_name
-            self.current_song_index = 0
-            
-            if self.setlist_songs:
-                self.update_current_song_display()
-                self.load_current_song()
-            else:
-                messagebox.showinfo("Info", "This setlist is empty.")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Error loading setlist songs: {str(e)}")
-    
-    def update_current_song_display(self):
-        """Update the current song display."""
-        if self.setlist_songs and 0 <= self.current_song_index < len(self.setlist_songs):
-            song = self.setlist_songs[self.current_song_index]
-            text = f"Setlist: {self.current_setlist}\n"
-            text += f"Song {self.current_song_index + 1}/{len(self.setlist_songs)}: {song['title']}"
-            if song.get('artist'):
-                text += f" - {song['artist']}"
-            self.current_song_label.configure(text=text)
-        else:
-            self.current_song_label.configure(text="No setlist loaded")
-    
-    def load_current_song(self):
-        """Load the current song from setlist."""
-        if self.setlist_songs and 0 <= self.current_song_index < len(self.setlist_songs):
-            song = self.setlist_songs[self.current_song_index]
-            
-            # Update key
-            if song.get('key'):
-                self.key_var.set(song['key'])
-            
-            # Update chord progression
-            if song.get('chord_progression'):
-                self.progression_text.delete(1.0, tk.END)
-                self.progression_text.insert(1.0, song['chord_progression'])
-            
-            # Reset transpose
-            self.current_transpose = 0
-            self.transpose_label.configure(text="Original")
-            
-            # Update visualization
-            self.update_visualization()
-    
-    def next_song(self):
-        """Go to next song in setlist."""
-        if self.setlist_songs and self.current_song_index < len(self.setlist_songs) - 1:
-            self.current_song_index += 1
-            self.update_current_song_display()
-            self.load_current_song()
-    
-    def prev_song(self):
-        """Go to previous song in setlist."""
-        if self.setlist_songs and self.current_song_index > 0:
-            self.current_song_index -= 1
-            self.update_current_song_display()
-            self.load_current_song()
-    
-    def transpose_current(self, semitones):
-        """Transpose current song by semitones."""
-        self.current_transpose += semitones
-        
-        # Update transpose label with more detailed info
-        if self.current_transpose == 0:
-            self.transpose_label.configure(text="Original Key")
-        elif self.current_transpose > 0:
-            self.transpose_label.configure(text=f"Transposed +{self.current_transpose} semitones")
-        else:
-            self.transpose_label.configure(text=f"Transposed {self.current_transpose} semitones")
-        
-        # Update key if available
-        if hasattr(self, 'key_var') and self.key_var.get():
-            try:
-                # Simple transpose logic (could be enhanced with music21)
-                keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-                current_key = self.key_var.get()
-                
-                if current_key in keys:
-                    current_index = keys.index(current_key)
-                    new_index = (current_index + self.current_transpose) % 12
-                    new_key = keys[new_index]
-                    self.key_var.set(new_key)
-                    
-                    # Update cipher visualizer's transpose value
-                    if hasattr(self, 'cipher_visualizer'):
-                        self.cipher_visualizer.current_transpose = self.current_transpose
-                    
-                    # Update visualization
-                    self.update_visualization()
-                    
-            except Exception:
-                pass  # Ignore transpose errors for complex keys
-    
-    def set_transpose(self, semitones):
-        """Set transpose to a specific value (not relative)."""
-        self.current_transpose = semitones
-        
-        # Update transpose label
-        if self.current_transpose == 0:
-            self.transpose_label.configure(text="Original Key")
-        elif self.current_transpose > 0:
-            self.transpose_label.configure(text=f"Transposed +{self.current_transpose} semitones")
-        else:
-            self.transpose_label.configure(text=f"Transposed {self.current_transpose} semitones")
-        
-        # Update cipher visualizer's transpose value
-        if hasattr(self, 'cipher_visualizer'):
-            self.cipher_visualizer.current_transpose = self.current_transpose
-        
-        # Update visualization
-        self.update_visualization()
-
-
-    def browse_audio_file(self):
-        """Browse for an audio file."""
-        from tkinter import filedialog
-        
-        filetypes = [
-            ("Audio files", "*.wav *.mp3 *.flac *.ogg *.m4a"),
-            ("WAV files", "*.wav"),
-            ("MP3 files", "*.mp3"),
-            ("All files", "*.*")
-        ]
-        
-        filename = filedialog.askopenfilename(
-            title="Select Audio File",
-            filetypes=filetypes
+        file_path = filedialog.asksaveasfilename(
+            title="Exportar Conteúdo",
+            defaultextension=".txt",
+            filetypes=[
+                ("Arquivos de texto", "*.txt"),
+                ("Arquivos ChordPro", "*.cho"),
+                ("Todos os arquivos", "*.*")
+            ]
         )
         
-        if filename:
-            self.audio_file_var.set(filename)
-    
-    def load_audio_file(self):
-        """Load the selected audio file."""
-        filename = self.audio_file_var.get()
-        if not filename:
-            messagebox.showwarning("Warning", "Please select an audio file first.")
-            return
-        
-        try:
-            if not LIBROSA_AVAILABLE:
-                messagebox.showerror("Error", "librosa library is required for audio loading.\nPlease install it with: pip install librosa")
-                return
-            
-            # Load audio file
-            audio_data, sample_rate = librosa.load(filename, sr=None)
-            
-            self.current_audio = audio_data
-            self.current_sample_rate = sample_rate
-            
-            # Update audio info
-            self.update_audio_info(filename, audio_data, sample_rate)
-            
-            messagebox.showinfo("Success", f"Audio file loaded successfully!\nSample rate: {sample_rate} Hz\nDuration: {len(audio_data)/sample_rate:.2f} seconds")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load audio file:\n{str(e)}")
-    
-    def clear_audio(self):
-        """Clear the loaded audio."""
-        self.current_audio = None
-        self.current_sample_rate = None
-        self.audio_file_var.set("")
-        
-        # Clear audio info
-        self.audio_info_text.config(state=tk.NORMAL)
-        self.audio_info_text.delete(1.0, tk.END)
-        self.audio_info_text.config(state=tk.DISABLED)
-    
-    def update_audio_info(self, filename, audio_data, sample_rate):
-        """Update the audio information display."""
-        import os
-        
-        self.audio_info_text.config(state=tk.NORMAL)
-        self.audio_info_text.delete(1.0, tk.END)
-        
-        # Basic file info
-        file_size = os.path.getsize(filename)
-        duration = len(audio_data) / sample_rate
-        
-        info_text = f"""File: {os.path.basename(filename)}
-Path: {filename}
-Size: {file_size / (1024*1024):.2f} MB
-Sample Rate: {sample_rate} Hz
-Duration: {duration:.2f} seconds
-Samples: {len(audio_data):,}
-Channels: 1 (mono)
-Format: {audio_data.dtype}
-
-Audio Statistics:
-Max Amplitude: {abs(audio_data).max():.4f}
-RMS: {(audio_data**2).mean()**0.5:.4f}
-Dynamic Range: {20 * np.log10(abs(audio_data).max() / (abs(audio_data).mean() + 1e-10)):.2f} dB
-"""
-        
-        self.audio_info_text.insert(tk.END, info_text)
-        self.audio_info_text.config(state=tk.DISABLED)
-    
-    def generate_audio_visualization(self):
-        """Generate visualization for the loaded audio."""
-        if self.current_audio is None:
-            messagebox.showwarning("Warning", "Please load an audio file first.")
-            return
-        
-        viz_type = self.audio_viz_type.get()
-        
-        try:
-            self.clear_visualization()
-            
-            if viz_type == "waveform":
-                self.audio_visualizer.create_waveform(self.fig, self.current_audio, self.current_sample_rate)
-            elif viz_type == "spectrogram":
-                self.audio_visualizer.create_spectrogram(self.fig, self.current_audio, self.current_sample_rate)
-            elif viz_type == "chromagram":
-                self.audio_visualizer.create_chromagram(self.fig, self.current_audio, self.current_sample_rate)
-            
-            self.canvas.draw()
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate visualization:\n{str(e)}")
-    
-    def next_section(self):
-        """Move to next section in live cipher mode."""
-        if hasattr(self.cipher_visualizer, 'next_section'):
-            if self.cipher_visualizer.next_section():
-                self.update_visualization()
-    
-    def prev_section(self):
-        """Move to previous section in live cipher mode."""
-        if hasattr(self.cipher_visualizer, 'prev_section'):
-            if self.cipher_visualizer.prev_section():
-                self.update_visualization()
-    
-    def reset_sections(self):
-        """Reset to first section in live cipher mode."""
-        if hasattr(self.cipher_visualizer, 'reset_section'):
-            self.cipher_visualizer.reset_section()
-            self.update_visualization()
+        if file_path:
+            try:
+                # Get current displayed content (with transposition)
+                export_content = self.current_content
+                if self.current_transpose != 0:
+                    lines = export_content.split('\n')
+                    transposed_lines = []
+                    for line in lines:
+                        if self.is_chord_line(line):
+                            transposed_lines.append(self.transpose_line(line))
+                        else:
+                            transposed_lines.append(line)
+                    export_content = '\n'.join(transposed_lines)
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(export_content)
+                
+                messagebox.showinfo("Sucesso", f"Conteúdo exportado para: {file_path}")
+                
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao exportar: {str(e)}")
 
 
 def show_music_visualizer(parent=None):
     """Show the Music Visualizer window."""
-    return MusicVisualizerWindow(parent)
+    return SimpleMusicVisualizer(parent)
 
 
 if __name__ == "__main__":
-    # Test the Music Visualizer window
-    app = MusicVisualizerWindow()
+    # Test the Music Visualizer
+    app = SimpleMusicVisualizer()
     app.window.mainloop()

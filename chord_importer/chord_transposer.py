@@ -104,13 +104,13 @@ def parse_chord(chord: str) -> Tuple[str, str, Optional[str]]:
     if "/" in chord:
         chord_part, bass_part = chord.split("/", 1)
         # Parse bass note (should be just a note, possibly with accidental)
-        bass_match = re.match(r'^([A-G][#b]?)', bass_part.strip())
+        bass_match = re.match(r'^([A-G](?:[#b]|##|bb)?)', bass_part.strip())
         if bass_match:
             bass_note = bass_match.group(1)
         chord = chord_part.strip()
     
     # Pattern to match chord root and suffix
-    pattern = r'^([A-G][#b]?)(.*)$'
+    pattern = r'^([A-G](?:[#b]|##|bb)?)(.*)$'
     match = re.match(pattern, chord)
     
     if not match:

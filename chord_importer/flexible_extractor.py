@@ -212,44 +212,8 @@ class FlexibleExtractor:
         return text
     
     def format_song_export(self, song_data: Dict[str, Any], source_name: str = "") -> str:
-        """Format extracted song data for export."""
-        lines = []
-        
-        # Header with song info
-        if song_data.get('title'):
-            lines.append(f"TITULO: {song_data['title']}")
-        
-        if song_data.get('artist'):
-            lines.append(f"ARTISTA: {song_data['artist']}")
-        
-        if song_data.get('key'):
-            lines.append(f"TOM: {song_data['key']}")
-        
-        if song_data.get('capo'):
-            lines.append(f"CAPOTRASTE: {song_data['capo']}")
-        
-        if source_name:
-            lines.append(f"FONTE: {source_name}")
-        
-        # Metadata section
-        metadata = song_data.get('metadata', {})
-        for key, value in metadata.items():
-            if value:
-                key_formatted = key.upper().replace('_', ' ')
-                lines.append(f"{key_formatted}: {value}")
-        
-        # Separator
-        lines.append("")
-        lines.append("=" * 50)
-        lines.append("CIFRA E LETRA")
-        lines.append("=" * 50)
-        lines.append("")
-        
-        # Main content (chords and lyrics)
-        if song_data.get('content'):
-            lines.append(song_data['content'])
-        
-        return _normalize_lyrics_text("\n".join(lines))
+        """Format extracted song data for export."""        
+        return _normalize_lyrics_text(song_data['content'])
 
 
 def extract_with_flexible_config(url: str) -> Tuple[str, str, str]:

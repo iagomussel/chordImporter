@@ -1,5 +1,5 @@
 # Chord Importer - Afinador Avançado HPS
-
+AINDA EM FASE ALPHA - EM DESENVOLVIMENTO
 Um aplicativo Python profissional para buscar cifras musicais e afinar guitarra com algoritmo HPS (Harmonic Product Spectrum) de alta precisão, baseado no artigo científico da [chciken.com](https://www.chciken.com/digital/signal/processing/2020/05/13/guitar-tuner.html).
 
 ## 🎸 Funcionalidades Principais
