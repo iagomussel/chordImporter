@@ -20,7 +20,6 @@ try:
     from .chord_identifier import show_chord_identifier
     from .music_visualizer import show_music_visualizer
     from .serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic
-    from .dorks import Dork, add_dork, delete_dork, load_dorks, save_dorks, update_dork
 except ImportError:
     from chord_importer.database import get_database
     from chord_importer.settings import get_settings
@@ -31,7 +30,6 @@ except ImportError:
     from chord_importer.chord_identifier import show_chord_identifier
     from chord_importer.music_visualizer import show_music_visualizer
     from chord_importer.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic
-    from chord_importer.dorks import Dork, add_dork, delete_dork, load_dorks, save_dorks, update_dork
 
 
 class ToolCard(tk.Frame):
@@ -1104,13 +1102,38 @@ For more information, visit our documentation."""
             index = self.results_tree.index(selection[0])
             result = self.search_results[index]
             
-            # Extract title and artist
-            title_parts = result.title.split(" - ", 1)
-            if len(title_parts) == 2:
-                artist, title = title_parts
-            else:
-                artist = "Unknown"
-                title = result.title
+            self.status_bar.set_status("Extracting song content...")
+            
+            # Extract full song content using source configurations
+            try:
+                from .core import fetch_song
+                extracted_title, extracted_artist, extracted_content = fetch_song(result.url)
+                
+                # Use extracted data if available, otherwise fallback to search result data
+                title = extracted_title if extracted_title else result.title
+                artist = extracted_artist if extracted_artist else "Unknown"
+                content = extracted_content if extracted_content else result.snippet
+                
+                # If we still don't have proper title/artist, try to parse from result title
+                if not extracted_title or not extracted_artist:
+                    title_parts = result.title.split(" - ", 1)
+                    if len(title_parts) == 2:
+                        fallback_artist, fallback_title = title_parts
+                        if not title:
+                            title = fallback_title
+                        if not artist or artist == "Unknown":
+                            artist = fallback_artist
+                
+            except Exception as e:
+                print(f"Error extracting song content: {e}")
+                # Fallback to basic search result data
+                title_parts = result.title.split(" - ", 1)
+                if len(title_parts) == 2:
+                    artist, title = title_parts
+                else:
+                    artist = "Unknown"
+                    title = result.title
+                content = result.snippet
             
             # Save to database
             song_id = self.db.save_song(
@@ -1118,7 +1141,7 @@ For more information, visit our documentation."""
                 artist=artist,
                 url=result.url,
                 source="Web Search",
-                content=result.snippet,
+                content=content,
                 tags=["Web Search"]
             )
             

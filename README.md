@@ -101,15 +101,22 @@ python -m chord_importer
 chord_importer/
 ├── __init__.py              # Inicialização do pacote
 ├── __main__.py              # Ponto de entrada principal
-├── gui.py                   # Interface gráfica principal
+├── main_dashboard.py        # Interface principal moderna
 ├── tuner_advanced.py        # Afinador HPS avançado
+├── music_visualizer.py      # Visualizador musical para live
+├── song_utilities.py        # Utilitários de análise musical
+├── chord_identifier.py      # Identificador de acordes por áudio
+├── cipher_manager.py        # Gerenciador de cifras local
 ├── core.py                  # Funções de busca e export
 ├── serper.py                # API de busca inteligente
 ├── chord_transposer.py      # Algoritmos de transposição
 ├── database.py              # Sistema de banco de dados
 ├── settings.py              # Gerenciamento de configurações
 ├── settings_window.py       # Interface de configurações
-└── dorks.py                 # Gerenciamento de consultas
+├── source_configs.py        # Sistema de configuração flexível
+├── source_config_window.py  # Interface de configuração de fontes
+├── flexible_extractor.py    # Extrator flexível de conteúdo
+└── default_sources.json     # Configurações padrão de extração
 ```
 
 ## 🎯 Casos de Uso Profissionais

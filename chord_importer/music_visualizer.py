@@ -401,73 +401,179 @@ class LiveCipherVisualizer:
         self.config = config
         self.current_section = 0
         self.sections = []
+        self.original_key = None
+        self.current_transpose = 0
+        self.chord_progression = []
     
-    def create_visualization(self, fig: "Figure", song_content: str, title: str = "", artist: str = "", key: str = "") -> None:
-        """Create live cipher visualization with large, readable text."""
+    def create_visualization(self, fig: "Figure", song_content: str, title: str = "", artist: str = "", key: str = "", transpose: int = 0) -> None:
+        """Create live performance visualization optimized for musicians."""
         ax = fig.add_subplot(111)
         ax.clear()
         
+        # Store original key and current transpose
+        if key and not self.original_key:
+            self.original_key = key
+        self.current_transpose = transpose
+        
+        # Calculate current key after transposition
+        current_key = self._transpose_key(key or self.original_key, transpose) if (key or self.original_key) else ""
+        
         if not song_content:
-            ax.text(0.5, 0.5, 'No song content available\nLoad a song from setlist', 
-                   ha='center', va='center', transform=ax.transAxes, 
-                   fontsize=20, color='#666666')
-            ax.axis('off')
+            self._display_no_content_message(ax, current_key)
             return
         
-        # Parse content into sections
+        # Parse content and extract chord progression
         self.sections = self._parse_song_sections(song_content)
+        self.chord_progression = self._extract_chord_progression(song_content)
         
         if not self.sections:
-            ax.text(0.5, 0.5, 'Unable to parse song content', 
-                   ha='center', va='center', transform=ax.transAxes, 
-                   fontsize=20, color='#666666')
-            ax.axis('off')
+            self._display_parse_error(ax)
             return
         
         # Ensure current section is valid
         if self.current_section >= len(self.sections):
             self.current_section = 0
         
-        # Display current section
-        section = self.sections[self.current_section]
-        
-        # Song header
-        header_y = 0.95
-        if title:
-            ax.text(0.5, header_y, title, ha='center', va='top', transform=ax.transAxes,
-                   fontsize=24, fontweight='bold', color='#2196F3')
-            header_y -= 0.08
-        
-        if artist:
-            ax.text(0.5, header_y, f"by {artist}", ha='center', va='top', transform=ax.transAxes,
-                   fontsize=16, style='italic', color='#666666')
-            header_y -= 0.06
-        
-        if key:
-            ax.text(0.5, header_y, f"Key: {key}", ha='center', va='top', transform=ax.transAxes,
-                   fontsize=14, color='#4CAF50')
-            header_y -= 0.06
-        
-        # Section indicator
-        section_info = f"Section {self.current_section + 1} of {len(self.sections)}"
-        if section.get('name'):
-            section_info += f" - {section['name']}"
-        
-        ax.text(0.5, header_y, section_info, ha='center', va='top', transform=ax.transAxes,
-               fontsize=12, color='#FF5722', fontweight='bold')
-        
-        # Display section content
-        content_y = header_y - 0.08
-        self._display_section_content(ax, section, content_y)
-        
-        # Navigation hint
-        ax.text(0.5, 0.02, "Use ← → arrows or Previous/Next buttons to navigate sections", 
-               ha='center', va='bottom', transform=ax.transAxes,
-               fontsize=10, color='#999999', style='italic')
+        # Display live performance interface
+        self._display_live_interface(ax, title, artist, current_key, transpose)
         
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.axis('off')
+    
+    def _display_no_content_message(self, ax, current_key):
+        """Display message when no content is available."""
+        ax.text(0.5, 0.6, '🎵 LIVE MODE 🎵', ha='center', va='center', transform=ax.transAxes,
+               fontsize=28, fontweight='bold', color='#2196F3')
+        
+        if current_key:
+            ax.text(0.5, 0.5, f'Key: {current_key}', ha='center', va='center', transform=ax.transAxes,
+                   fontsize=20, fontweight='bold', color='#4CAF50')
+        
+        ax.text(0.5, 0.4, 'Load a song from setlist or enter chord progression', 
+               ha='center', va='center', transform=ax.transAxes, 
+               fontsize=16, color='#666666')
+        ax.axis('off')
+    
+    def _display_parse_error(self, ax):
+        """Display error message when content cannot be parsed."""
+        ax.text(0.5, 0.5, 'Unable to parse song content\nCheck format and try again', 
+               ha='center', va='center', transform=ax.transAxes, 
+               fontsize=18, color='#FF5722')
+        ax.axis('off')
+    
+    def _display_live_interface(self, ax, title, artist, current_key, transpose):
+        """Display the complete live performance interface."""
+        # Header with song info and key (top 20% of screen)
+        header_y = 0.95
+        
+        # Song title - large and prominent
+        if title:
+            ax.text(0.5, header_y, title, ha='center', va='top', transform=ax.transAxes,
+                   fontsize=26, fontweight='bold', color='#2196F3')
+            header_y -= 0.06
+        
+        # Artist
+        if artist:
+            ax.text(0.5, header_y, f"by {artist}", ha='center', va='top', transform=ax.transAxes,
+                   fontsize=16, style='italic', color='#666666')
+            header_y -= 0.05
+        
+        # Key and transpose info - very prominent for musicians
+        key_info = self._format_key_info(current_key, transpose)
+        ax.text(0.5, header_y, key_info, ha='center', va='top', transform=ax.transAxes,
+               fontsize=20, fontweight='bold', color='#4CAF50',
+               bbox=dict(boxstyle="round,pad=0.5", facecolor='#E8F5E8', alpha=0.8))
+        header_y -= 0.08
+        
+        # Chord progression bar (if available)
+        if self.chord_progression:
+            progression_text = self._format_chord_progression(self.chord_progression, transpose)
+            ax.text(0.5, header_y, f"Progression: {progression_text}", ha='center', va='top', 
+                   transform=ax.transAxes, fontsize=14, fontweight='bold', color='#9C27B0')
+            header_y -= 0.05
+        
+        # Section indicator
+        section = self.sections[self.current_section]
+        section_info = f"Section {self.current_section + 1}/{len(self.sections)}"
+        if section.get('name'):
+            section_info += f" - {section['name']}"
+        
+        ax.text(0.5, header_y, section_info, ha='center', va='top', transform=ax.transAxes,
+               fontsize=14, color='#FF5722', fontweight='bold')
+        
+        # Main content area (middle 60% of screen)
+        content_y = header_y - 0.05
+        self._display_section_content_live(ax, section, content_y, transpose)
+        
+        # Footer with navigation hints (bottom 10% of screen)
+        footer_text = "Navigation: ← → (sections)  |  Transpose: +/- buttons  |  F11 (fullscreen)"
+        ax.text(0.5, 0.02, footer_text, ha='center', va='bottom', transform=ax.transAxes,
+               fontsize=10, color='#999999', style='italic')
+    
+    def _format_key_info(self, current_key, transpose):
+        """Format key information with transpose indication."""
+        if not current_key:
+            return "Key: Not specified"
+        
+        if transpose == 0:
+            return f"Key: {current_key} (Original)"
+        elif transpose > 0:
+            return f"Key: {current_key} (+{transpose} semitones)"
+        else:
+            return f"Key: {current_key} ({transpose} semitones)"
+    
+    def _transpose_key(self, key, semitones):
+        """Transpose a key by the given number of semitones."""
+        if not key or semitones == 0:
+            return key
+        
+        # Simple key transposition (basic implementation)
+        try:
+            from .song_utilities import MusicTheoryEngine
+            return MusicTheoryEngine.transpose_chord(key, semitones)
+        except:
+            # Fallback: just return original key with indication
+            return key
+    
+    def _extract_chord_progression(self, content):
+        """Extract main chord progression from song content."""
+        chords = []
+        lines = content.split('\n')
+        
+        for line in lines[:10]:  # Check first 10 lines for main progression
+            if self._is_chord_line(line):
+                line_chords = self._extract_chords_from_line(line)
+                chords.extend(line_chords)
+                if len(chords) >= 8:  # Limit to first 8 chords for display
+                    break
+        
+        return chords[:8]  # Return max 8 chords for clean display
+    
+    def _extract_chords_from_line(self, line):
+        """Extract individual chords from a line."""
+        import re
+        chord_pattern = r'\b[A-G][#b]?[m]?[0-9]?[sus]?[add]?[0-9]?\b'
+        return re.findall(chord_pattern, line)
+    
+    def _format_chord_progression(self, chords, transpose):
+        """Format chord progression with transposition."""
+        if not chords:
+            return "No progression detected"
+        
+        transposed_chords = []
+        for chord in chords:
+            if transpose != 0:
+                try:
+                    from .song_utilities import MusicTheoryEngine
+                    transposed_chord = MusicTheoryEngine.transpose_chord(chord, transpose)
+                    transposed_chords.append(transposed_chord)
+                except:
+                    transposed_chords.append(chord)
+            else:
+                transposed_chords.append(chord)
+        
+        return " - ".join(transposed_chords)
     
     def _parse_song_sections(self, content: str) -> List[Dict]:
         """Parse song content into sections."""
@@ -504,33 +610,68 @@ class LiveCipherVisualizer:
         
         return sections
     
-    def _display_section_content(self, ax, section: Dict, start_y: float):
-        """Display the content of a section."""
+    def _display_section_content_live(self, ax, section: Dict, start_y: float, transpose: int = 0):
+        """Display section content optimized for live performance with transposition."""
         lines = section['lines']
         if not lines:
+            ax.text(0.5, start_y - 0.1, 'No content in this section', 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=16, color='#999999', style='italic')
             return
         
-        # Calculate line spacing based on number of lines
-        available_height = start_y - 0.1
-        line_spacing = min(0.06, available_height / len(lines))
-        font_size = min(18, max(12, int(available_height * 100 / len(lines))))
+        # Calculate optimal layout for live performance
+        available_height = start_y - 0.15  # Leave more space for footer
+        max_lines = min(len(lines), 12)  # Limit lines for readability
+        line_spacing = available_height / max_lines if max_lines > 0 else 0.05
+        
+        # Larger fonts for stage visibility
+        base_font_size = max(14, min(20, int(available_height * 80 / max_lines)))
+        chord_font_size = base_font_size + 3
+        lyric_font_size = base_font_size
         
         current_y = start_y
         
-        for line in lines:
-            # Check if line contains chords (has letters followed by spaces/other chords)
+        for i, line in enumerate(lines[:max_lines]):
             if self._is_chord_line(line):
-                # Display chord line with highlighting
-                ax.text(0.5, current_y, line, ha='center', va='top', transform=ax.transAxes,
-                       fontsize=font_size + 2, fontweight='bold', color='#FF5722',
-                       fontfamily='monospace')
+                # Transpose chords in real-time if needed
+                transposed_line = self._transpose_chord_line(line, transpose) if transpose != 0 else line
+                
+                # Display chord line with high contrast for stage visibility
+                ax.text(0.5, current_y, transposed_line, ha='center', va='top', transform=ax.transAxes,
+                       fontsize=chord_font_size, fontweight='bold', color='#FF5722',
+                       fontfamily='monospace',
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor='#FFF3E0', alpha=0.7))
             else:
-                # Display lyrics line
+                # Display lyrics with good contrast
                 ax.text(0.5, current_y, line, ha='center', va='top', transform=ax.transAxes,
-                       fontsize=font_size, color='#333333',
+                       fontsize=lyric_font_size, color='#212121',
                        fontfamily='monospace')
             
             current_y -= line_spacing
+        
+        # If there are more lines, show indicator
+        if len(lines) > max_lines:
+            ax.text(0.5, current_y, f'... and {len(lines) - max_lines} more lines', 
+                   ha='center', va='top', transform=ax.transAxes,
+                   fontsize=12, color='#999999', style='italic')
+    
+    def _transpose_chord_line(self, line: str, semitones: int) -> str:
+        """Transpose all chords in a line by the given number of semitones."""
+        if semitones == 0:
+            return line
+        
+        import re
+        chord_pattern = r'\b[A-G][#b]?[m]?[0-9]?[sus]?[add]?[0-9]?\b'
+        
+        def transpose_match(match):
+            chord = match.group()
+            try:
+                from .song_utilities import MusicTheoryEngine
+                return MusicTheoryEngine.transpose_chord(chord, semitones)
+            except:
+                return chord  # Return original if transposition fails
+        
+        return re.sub(chord_pattern, transpose_match, line)
     
     def _is_chord_line(self, line: str) -> bool:
         """Check if a line contains chords."""
@@ -876,47 +1017,80 @@ class MusicVisualizerWindow:
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
         
         # Transpose controls
-        transpose_frame = tk.LabelFrame(parent, text="Quick Transpose", font=("Arial", 12, "bold"))
+        # Live Performance Transpose Controls
+        transpose_frame = tk.LabelFrame(parent, text="🎵 Live Transpose", font=("Arial", 12, "bold"))
         transpose_frame.pack(fill=tk.X, padx=10, pady=10)
         
+        # Large transpose buttons for stage use
         transpose_controls = tk.Frame(transpose_frame)
         transpose_controls.pack(fill=tk.X, padx=10, pady=10)
         
+        # -1 semitone button
         tk.Button(
             transpose_controls,
-            text="🔽 -1",
+            text="♭ -1 Semitone",
             command=lambda: self.transpose_current(-1),
-            bg="#FF9800",
+            bg="#FF5722",
             fg="white",
-            font=("Arial", 10, "bold"),
+            font=("Arial", 12, "bold"),
             relief="flat",
             bd=0,
-            padx=15,
-            pady=8,
+            padx=20,
+            pady=12,
             cursor="hand2"
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
+        # Current transpose status
         self.transpose_label = tk.Label(
             transpose_controls,
-            text="Original",
-            font=("Arial", 10, "bold"),
-            fg="#333333"
+            text="Original Key",
+            font=("Arial", 11, "bold"),
+            fg="#2196F3",
+            bg="#E3F2FD",
+            padx=15,
+            pady=8,
+            relief="solid",
+            bd=1
         )
         self.transpose_label.pack(side=tk.LEFT, padx=10)
         
+        # +1 semitone button
         tk.Button(
             transpose_controls,
-            text="🔼 +1",
+            text="♯ +1 Semitone",
             command=lambda: self.transpose_current(1),
-            bg="#FF9800",
+            bg="#4CAF50",
             fg="white",
-            font=("Arial", 10, "bold"),
+            font=("Arial", 12, "bold"),
             relief="flat",
             bd=0,
-            padx=15,
-            pady=8,
+            padx=20,
+            pady=12,
             cursor="hand2"
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        
+        # Quick transpose shortcuts
+        quick_transpose = tk.Frame(transpose_frame)
+        quick_transpose.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        tk.Label(quick_transpose, text="Quick:", font=("Arial", 10)).pack(side=tk.LEFT)
+        
+        # Common transpose intervals
+        for interval, label in [(-5, "-5 (♭5)"), (-3, "-3 (♭3)"), (0, "Reset"), (3, "+3 (♯3)"), (5, "+5 (♯5)")]:
+            bg_color = "#607D8B" if interval == 0 else "#9C27B0"
+            tk.Button(
+                quick_transpose,
+                text=label,
+                command=lambda i=interval: self.set_transpose(i),
+                bg=bg_color,
+                fg="white",
+                font=("Arial", 9, "bold"),
+                relief="flat",
+                bd=0,
+                padx=8,
+                pady=4,
+                cursor="hand2"
+            ).pack(side=tk.LEFT, padx=2)
         
         # Fullscreen control
         fullscreen_frame = tk.LabelFrame(parent, text="Display", font=("Arial", 12, "bold"))
@@ -1346,7 +1520,9 @@ class MusicVisualizerWindow:
                 except:
                     pass
         
-        self.cipher_visualizer.create_visualization(self.fig, song_content, title, artist, key)
+        # Pass current transpose value to the visualizer
+        transpose = getattr(self, 'current_transpose', 0)
+        self.cipher_visualizer.create_visualization(self.fig, song_content, title, artist, key, transpose)
     
     def export_visualization(self):
         """Export current visualization as image."""
@@ -1532,13 +1708,13 @@ class MusicVisualizerWindow:
         """Transpose current song by semitones."""
         self.current_transpose += semitones
         
-        # Update transpose label
+        # Update transpose label with more detailed info
         if self.current_transpose == 0:
-            self.transpose_label.configure(text="Original")
+            self.transpose_label.configure(text="Original Key")
         elif self.current_transpose > 0:
-            self.transpose_label.configure(text=f"+{self.current_transpose}")
+            self.transpose_label.configure(text=f"Transposed +{self.current_transpose} semitones")
         else:
-            self.transpose_label.configure(text=str(self.current_transpose))
+            self.transpose_label.configure(text=f"Transposed {self.current_transpose} semitones")
         
         # Update key if available
         if hasattr(self, 'key_var') and self.key_var.get():
@@ -1553,11 +1729,34 @@ class MusicVisualizerWindow:
                     new_key = keys[new_index]
                     self.key_var.set(new_key)
                     
+                    # Update cipher visualizer's transpose value
+                    if hasattr(self, 'cipher_visualizer'):
+                        self.cipher_visualizer.current_transpose = self.current_transpose
+                    
                     # Update visualization
                     self.update_visualization()
                     
             except Exception:
                 pass  # Ignore transpose errors for complex keys
+    
+    def set_transpose(self, semitones):
+        """Set transpose to a specific value (not relative)."""
+        self.current_transpose = semitones
+        
+        # Update transpose label
+        if self.current_transpose == 0:
+            self.transpose_label.configure(text="Original Key")
+        elif self.current_transpose > 0:
+            self.transpose_label.configure(text=f"Transposed +{self.current_transpose} semitones")
+        else:
+            self.transpose_label.configure(text=f"Transposed {self.current_transpose} semitones")
+        
+        # Update cipher visualizer's transpose value
+        if hasattr(self, 'cipher_visualizer'):
+            self.cipher_visualizer.current_transpose = self.current_transpose
+        
+        # Update visualization
+        self.update_visualization()
 
 
     def browse_audio_file(self):
