@@ -1,0 +1,135 @@
+===============================================
+    MUSICAL TOOLS SUITE - INSTRUÇÕES DE USO
+===============================================
+
+VERSÃO: 2.0 (Build Moderno)
+DATA: $(Get-Date -Format "dd/MM/yyyy")
+
+===============================================
+CONTEÚDO DO PACOTE
+===============================================
+
+📁 MusicalToolsSuite/
+├── MusicalToolsSuite.exe    ← EXECUTÁVEL PRINCIPAL
+├── _internal/               ← Bibliotecas e dependências
+│   ├── chord_importer/      ← Módulos da aplicação
+│   ├── numpy/               ← Processamento numérico
+│   ├── matplotlib/          ← Visualizações
+│   ├── scipy/               ← Análise científica
+│   ├── librosa/             ← Processamento de áudio
+│   ├── playwright/          ← Automação web
+│   └── [outras bibliotecas]
+
+===============================================
+COMO USAR
+===============================================
+
+1. EXECUÇÃO SIMPLES:
+   - Duplo clique em "MusicalToolsSuite.exe"
+   - Aguarde alguns segundos para carregar
+   - O dashboard principal será exibido
+
+2. PRIMEIRA EXECUÇÃO:
+   - Configure sua API key do Serper (opcional)
+   - Acesse "⚙️ Configurações" no dashboard
+   - Teste as funcionalidades básicas
+
+===============================================
+FUNCIONALIDADES INCLUÍDAS
+===============================================
+
+🎵 DASHBOARD PRINCIPAL
+- Interface moderna e intuitiva
+- Busca rápida de músicas
+- Estatísticas e histórico
+- Acesso a todas as ferramentas
+
+🎸 FERRAMENTAS MUSICAIS
+- Music Visualizer (modo live para shows)
+- Song Utilities (análise e transposição)
+- Chord Identifier (reconhecimento por áudio)
+- Cipher Manager (gerenciamento local)
+- Advanced Tuner (afinação precisa)
+- Source Config (configuração de fontes)
+
+🔧 RECURSOS AVANÇADOS
+- Extração inteligente de cifras
+- Sistema de configuração flexível
+- Banco de dados local SQLite
+- Suporte a múltiplas fontes web
+- Transposição em tempo real
+- Visualizações para performance ao vivo
+
+===============================================
+REQUISITOS DO SISTEMA
+===============================================
+
+✅ MÍNIMOS:
+- Windows 10 ou superior (64-bit)
+- 4 GB RAM
+- 500 MB espaço em disco
+- Conexão com internet (para buscas)
+
+✅ RECOMENDADOS:
+- Windows 11 (64-bit)
+- 8 GB RAM
+- 1 GB espaço em disco
+- Placa de som para recursos de áudio
+- Microfone para identificação de acordes
+
+===============================================
+SOLUÇÃO DE PROBLEMAS
+===============================================
+
+❌ ERRO: "Aplicativo não inicia"
+✅ SOLUÇÃO: Execute como administrador
+
+❌ ERRO: "Erro de áudio"
+✅ SOLUÇÃO: Verifique drivers de áudio
+
+❌ ERRO: "Busca não funciona"
+✅ SOLUÇÃO: Configure API key nas configurações
+
+❌ ERRO: "Visualizações não aparecem"
+✅ SOLUÇÃO: Instale Visual C++ Redistributable
+
+===============================================
+ARQUIVOS DE CONFIGURAÇÃO
+===============================================
+
+📍 LOCALIZAÇÃO DOS DADOS:
+C:\Users\[SEU_USUARIO]\.chord_importer\
+
+📁 ESTRUTURA:
+├── chord_importer.db        ← Banco de dados
+├── config.cfg               ← Configurações
+└── sources/
+    └── sources.json         ← Configurações de fontes
+
+===============================================
+BACKUP E RESTAURAÇÃO
+===============================================
+
+🔄 FAZER BACKUP:
+1. Feche a aplicação
+2. Copie a pasta: C:\Users\[SEU_USUARIO]\.chord_importer\
+3. Guarde em local seguro
+
+🔄 RESTAURAR BACKUP:
+1. Feche a aplicação
+2. Substitua a pasta: C:\Users\[SEU_USUARIO]\.chord_importer\
+3. Reinicie a aplicação
+
+===============================================
+SUPORTE E CONTATO
+===============================================
+
+📧 Para suporte técnico ou dúvidas:
+- Verifique a documentação no GitHub
+- Reporte bugs através do sistema de issues
+
+🎵 Musical Tools Suite - Desenvolvido para músicos profissionais
+🚀 Versão moderna sem componentes legados
+✨ Interface otimizada para performance ao vivo
+
+===============================================

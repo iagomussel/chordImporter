@@ -995,6 +995,11 @@ class SongUtilitiesWindow:
                                       bg="#f44336", fg="white", font=("Arial", 10, "bold"), state=tk.DISABLED)
         self.metro_stop_btn.pack(side=tk.LEFT, padx=(10, 0))
         
+        # Sound toggle button
+        self.sound_btn = tk.Button(metro_controls, text="🔊 Sound", command=self.toggle_metronome_sound,
+                                 bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
+        self.sound_btn.pack(side=tk.LEFT, padx=(10, 0))
+        
         # Beat indicator
         self.beat_indicator = tk.Label(metro_controls, text="♩", font=("Arial", 24), fg="#666666")
         self.beat_indicator.pack(side=tk.RIGHT, padx=(10, 0))
@@ -1347,6 +1352,14 @@ class SongUtilitiesWindow:
         
         # Schedule beat indicator reset
         self.window.after(100, lambda: self.beat_indicator.config(fg="#666666"))
+    
+    def toggle_metronome_sound(self):
+        """Toggle metronome sound on/off."""
+        sound_enabled = self.metronome.toggle_sound()
+        if sound_enabled:
+            self.sound_btn.config(text="🔊 Sound", bg="#2196F3")
+        else:
+            self.sound_btn.config(text="🔇 Muted", bg="#666666")
     
     def start_tempo_training(self):
         """Start tempo training session."""

@@ -13,7 +13,7 @@ from datetime import datetime
 try:
     from .database import get_database
     from .settings import get_settings
-    from .tuner_advanced import TunerWindow
+    from .tuner_new import TunerWindow
     from .cipher_manager import show_cipher_manager
     from .settings_window import show_settings_window
     from .song_utilities import show_song_utilities
@@ -23,7 +23,7 @@ try:
 except ImportError:
     from chord_importer.database import get_database
     from chord_importer.settings import get_settings
-    from chord_importer.tuner_advanced import TunerWindow
+    from chord_importer.tuner_new import TunerWindow
     from chord_importer.cipher_manager import show_cipher_manager
     from chord_importer.settings_window import show_settings_window
     from chord_importer.song_utilities import show_song_utilities

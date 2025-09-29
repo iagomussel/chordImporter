@@ -16,7 +16,7 @@ a = Analysis(
         # GUI frameworks
         'tkinter', 'tkinter.ttk', 'tkinter.filedialog', 'tkinter.messagebox',
         # Audio processing
-        'numpy', 'scipy', 'pyaudio', 'librosa', 'soundfile',
+        'numpy', 'scipy', 'pyaudio', 'librosa', 'soundfile', 'sounddevice',
         # Music theory
         'music21', 'mingus',
         # Web scraping and requests
@@ -58,7 +58,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version=None,
-    icon='icon.ico',
 )
 coll = COLLECT(
     exe,

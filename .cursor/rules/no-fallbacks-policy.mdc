@@ -1,0 +1,57 @@
+---
+alwaysApply: true
+description: "Critical policy: NEVER use fallbacks in this project"
+---
+
+# NO FALLBACKS POLICY - CRITICAL
+
+## ABSOLUTE RULE: NEVER USE FALLBACKS
+
+This project has a **ZERO TOLERANCE** policy for fallbacks. All dependencies MUST be included in the build.
+
+### What This Means:
+
+1. **NO try/except import patterns** like:
+   ```python
+   # ❌ FORBIDDEN
+   try:
+       import sounddevice
+   except ImportError:
+       import fallback_module
+   ```
+
+2. **NO conditional imports** based on availability:
+   ```python
+   # ❌ FORBIDDEN
+   if sounddevice_available:
+       from tuner_new import TunerWindow
+   else:
+       from tuner_fallback import TunerWindow
+   ```
+
+3. **NO "smart" selection systems** that choose between implementations
+
+4. **NO runtime dependency checking** with fallback behavior
+
+### Required Approach:
+
+- **FORCE INCLUDE** all dependencies in PyInstaller build
+- Use **aggressive collection** in `.spec` files
+- Create **comprehensive hooks** for all audio libraries
+- **Fail fast** if dependencies are missing - don't provide alternatives
+
+### Audio Dependencies That MUST Be Included:
+
+- `sounddevice` (complete with `_sounddevice`, `_internal`)
+- `numpy` (all submodules: `core`, `linalg`, `fft`, `random`)
+- `scipy` (complete audio processing modules)
+- `cffi` (required by sounddevice)
+- `pyaudio`
+- `librosa`
+- `soundfile`
+
+### Build Requirements:
+
+The executable MUST contain ALL dependencies and NEVER ask for additional installations.
+
+**Remember: If a dependency is missing, FIX the build - don't create a fallback!**
