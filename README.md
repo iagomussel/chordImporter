@@ -104,7 +104,6 @@ chord_importer/
 ├── main_dashboard.py        # Interface principal moderna
 ├── tuner_advanced.py        # Afinador HPS avançado
 ├── music_visualizer.py      # Visualizador musical para live
-├── song_utilities.py        # Utilitários de análise musical
 ├── chord_identifier.py      # Identificador de acordes por áudio
 ├── cipher_manager.py        # Gerenciador de cifras local
 ├── core.py                  # Funções de busca e export

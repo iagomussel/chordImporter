@@ -30,11 +30,9 @@ except ImportError:
 try:
     from .database import get_database
     from .settings import get_settings
-    from .song_utilities import MusicTheoryEngine
 except ImportError:
     from chord_importer.database import get_database
     from chord_importer.settings import get_settings
-    from chord_importer.song_utilities import MusicTheoryEngine
 
 
 class AnalysisMode(Enum):

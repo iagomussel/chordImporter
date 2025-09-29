@@ -10,10 +10,10 @@ import json
 from typing import Dict, Optional
 
 try:
-    from .source_configs import get_source_manager, SourceConfig, SourceSelector
+    from .source_configs import get_source_manager, SourceConfig, SourceSelector, SearchDork
     from .flexible_extractor import FlexibleExtractor
 except ImportError:
-    from chord_importer.source_configs import get_source_manager, SourceConfig, SourceSelector
+    from chord_importer.source_configs import get_source_manager, SourceConfig, SourceSelector, SearchDork
     from chord_importer.flexible_extractor import FlexibleExtractor
 
 
@@ -102,6 +102,9 @@ class SourceConfigWindow:
         
         # Advanced tab
         self.create_advanced_tab()
+        
+        # Dorks tab
+        self.create_dorks_tab()
         
         # Test tab
         self.create_test_tab()
@@ -260,6 +263,108 @@ class SourceConfigWindow:
         
         advanced_frame.columnconfigure(0, weight=1)
     
+    def create_dorks_tab(self):
+        """Create the search dorks configuration tab."""
+        dorks_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(dorks_frame, text="Dorks de Busca")
+        
+        # Dorks list frame
+        list_frame = ttk.LabelFrame(dorks_frame, text="Dorks Configurados", padding="10")
+        list_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        
+        # Dorks treeview
+        columns = ("Nome", "Padrão", "Prioridade", "Ativo")
+        self.dorks_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=6)
+        
+        # Configure columns
+        self.dorks_tree.heading("Nome", text="Nome")
+        self.dorks_tree.heading("Padrão", text="Padrão de Busca")
+        self.dorks_tree.heading("Prioridade", text="Prioridade")
+        self.dorks_tree.heading("Ativo", text="Ativo")
+        
+        self.dorks_tree.column("Nome", width=120)
+        self.dorks_tree.column("Padrão", width=300)
+        self.dorks_tree.column("Prioridade", width=80)
+        self.dorks_tree.column("Ativo", width=60)
+        
+        self.dorks_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Scrollbar for dorks tree
+        dorks_scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.dorks_tree.yview)
+        dorks_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.dorks_tree.configure(yscrollcommand=dorks_scrollbar.set)
+        
+        # Dorks buttons
+        dorks_buttons_frame = ttk.Frame(list_frame)
+        dorks_buttons_frame.grid(row=1, column=0, columnspan=2, pady=(10, 0), sticky=(tk.W, tk.E))
+        
+        ttk.Button(dorks_buttons_frame, text="Novo Dork", command=self.new_dork).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(dorks_buttons_frame, text="Editar", command=self.edit_dork).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(dorks_buttons_frame, text="Excluir", command=self.delete_dork).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(dorks_buttons_frame, text="Testar", command=self.test_dork).pack(side=tk.LEFT)
+        
+        # Configure grid weights
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+        
+        # Dork editor frame
+        editor_frame = ttk.LabelFrame(dorks_frame, text="Editor de Dork", padding="10")
+        editor_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # Dork name
+        ttk.Label(editor_frame, text="Nome:").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        self.dork_name_var = tk.StringVar()
+        ttk.Entry(editor_frame, textvariable=self.dork_name_var, width=30).grid(
+            row=0, column=1, sticky=(tk.W, tk.E), pady=(0, 5), padx=(5, 0))
+        
+        # Dork pattern
+        ttk.Label(editor_frame, text="Padrão:").grid(row=1, column=0, sticky=tk.W, pady=(0, 5))
+        self.dork_pattern_var = tk.StringVar()
+        ttk.Entry(editor_frame, textvariable=self.dork_pattern_var, width=50).grid(
+            row=1, column=1, sticky=(tk.W, tk.E), pady=(0, 5), padx=(5, 0))
+        
+        # Help text for pattern
+        help_text = "Use {query} para o termo de busca, {domain} para o domínio\nExemplos: 'site:{domain} {query}', '{query} filetype:pdf'"
+        ttk.Label(editor_frame, text=help_text, font=("Arial", 8), foreground="gray").grid(
+            row=2, column=1, sticky=tk.W, pady=(0, 10), padx=(5, 0))
+        
+        # Dork description
+        ttk.Label(editor_frame, text="Descrição:").grid(row=3, column=0, sticky=tk.W, pady=(0, 5))
+        self.dork_description_var = tk.StringVar()
+        ttk.Entry(editor_frame, textvariable=self.dork_description_var, width=50).grid(
+            row=3, column=1, sticky=(tk.W, tk.E), pady=(0, 5), padx=(5, 0))
+        
+        # Priority and enabled
+        controls_frame = ttk.Frame(editor_frame)
+        controls_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        ttk.Label(controls_frame, text="Prioridade:").pack(side=tk.LEFT)
+        self.dork_priority_var = tk.StringVar(value="5")
+        priority_spinbox = ttk.Spinbox(controls_frame, from_=1, to=10, textvariable=self.dork_priority_var, width=5)
+        priority_spinbox.pack(side=tk.LEFT, padx=(5, 20))
+        
+        self.dork_enabled_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(controls_frame, text="Ativo", variable=self.dork_enabled_var).pack(side=tk.LEFT)
+        
+        # Filetype and max results
+        ttk.Label(controls_frame, text="Filetype:").pack(side=tk.LEFT, padx=(20, 5))
+        self.dork_filetype_var = tk.StringVar()
+        ttk.Entry(controls_frame, textvariable=self.dork_filetype_var, width=10).pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(controls_frame, text="Max Resultados:").pack(side=tk.LEFT, padx=(0, 5))
+        self.dork_max_results_var = tk.StringVar(value="10")
+        ttk.Spinbox(controls_frame, from_=1, to=50, textvariable=self.dork_max_results_var, width=5).pack(side=tk.LEFT)
+        
+        # Configure editor frame grid
+        editor_frame.columnconfigure(1, weight=1)
+        
+        # Configure main dorks frame grid
+        dorks_frame.columnconfigure(0, weight=1)
+        dorks_frame.rowconfigure(0, weight=1)
+        
+        # Bind tree selection
+        self.dorks_tree.bind('<<TreeviewSelect>>', self.on_dork_select)
+    
     def create_test_tab(self):
         """Create the test tab."""
         test_frame = ttk.Frame(self.notebook, padding="10")
@@ -343,6 +448,10 @@ class SourceConfigWindow:
         self.remove_styles_var.set(config.remove_styles)
         self.timeout_var.set(str(config.timeout))
         self.encoding_var.set(config.encoding)
+        
+        # Load dorks
+        self.refresh_dorks_list()
+        self._clear_dork_form()
     
     def save_current_source(self):
         """Save the current source configuration."""
@@ -351,6 +460,9 @@ class SourceConfigWindow:
             return
         
         try:
+            # Save current dork if any
+            self.save_dork()
+            
             # Create source config from form data
             config = self._create_config_from_form()
             
@@ -465,6 +577,13 @@ class SourceConfigWindow:
         self.remove_styles_var.set(True)
         self.timeout_var.set("15")
         self.encoding_var.set("utf-8")
+        
+        # Clear dorks
+        if hasattr(self, 'dorks_tree'):
+            for item in self.dorks_tree.get_children():
+                self.dorks_tree.delete(item)
+        if hasattr(self, '_clear_dork_form'):
+            self._clear_dork_form()
     
     def test_current_source(self):
         """Test the current source configuration."""
@@ -544,6 +663,193 @@ class SourceConfigWindow:
                 messagebox.showinfo("Sucesso", f"Configuração exportada para {file_path}")
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao exportar: {str(e)}")
+    
+    # Dorks management methods
+    
+    def refresh_dorks_list(self):
+        """Refresh the dorks list for the current source."""
+        # Clear current items
+        for item in self.dorks_tree.get_children():
+            self.dorks_tree.delete(item)
+        
+        if not self.current_source_id:
+            return
+        
+        config = self.source_manager.get_source(self.current_source_id)
+        if not config or not config.search_dorks:
+            return
+        
+        # Add dorks to tree
+        for dork in config.search_dorks:
+            self.dorks_tree.insert("", tk.END, values=(
+                dork.name,
+                dork.pattern,
+                str(dork.priority),
+                "Sim" if dork.enabled else "Não"
+            ))
+    
+    def on_dork_select(self, event):
+        """Handle dork selection in tree."""
+        selection = self.dorks_tree.selection()
+        if not selection:
+            self._clear_dork_form()
+            return
+        
+        item = selection[0]
+        values = self.dorks_tree.item(item)['values']
+        
+        if not values or not self.current_source_id:
+            return
+        
+        # Find the dork by name
+        config = self.source_manager.get_source(self.current_source_id)
+        if not config:
+            return
+        
+        dork_name = values[0]
+        dork = config.get_dork(dork_name)
+        
+        if dork:
+            self._load_dork_to_form(dork)
+    
+    def _load_dork_to_form(self, dork: SearchDork):
+        """Load dork data to form fields."""
+        self.dork_name_var.set(dork.name)
+        self.dork_pattern_var.set(dork.pattern)
+        self.dork_description_var.set(dork.description)
+        self.dork_priority_var.set(str(dork.priority))
+        self.dork_enabled_var.set(dork.enabled)
+        self.dork_filetype_var.set(dork.filetype or "")
+        self.dork_max_results_var.set(str(dork.max_results))
+    
+    def _clear_dork_form(self):
+        """Clear dork form fields."""
+        self.dork_name_var.set("")
+        self.dork_pattern_var.set("")
+        self.dork_description_var.set("")
+        self.dork_priority_var.set("5")
+        self.dork_enabled_var.set(True)
+        self.dork_filetype_var.set("")
+        self.dork_max_results_var.set("10")
+    
+    def new_dork(self):
+        """Create a new dork."""
+        if not self.current_source_id:
+            messagebox.showerror("Erro", "Selecione uma fonte primeiro.")
+            return
+        
+        self._clear_dork_form()
+        # Focus on name field
+        self.dork_name_var.set("Novo Dork")
+        self.dork_pattern_var.set("{query}")
+    
+    def edit_dork(self):
+        """Edit selected dork."""
+        selection = self.dorks_tree.selection()
+        if not selection:
+            messagebox.showwarning("Aviso", "Selecione um dork para editar.")
+            return
+        
+        # The form is already populated by on_dork_select
+        pass
+    
+    def delete_dork(self):
+        """Delete selected dork."""
+        selection = self.dorks_tree.selection()
+        if not selection:
+            messagebox.showwarning("Aviso", "Selecione um dork para excluir.")
+            return
+        
+        if not self.current_source_id:
+            return
+        
+        item = selection[0]
+        values = self.dorks_tree.item(item)['values']
+        dork_name = values[0]
+        
+        if messagebox.askyesno("Confirmar", f"Excluir o dork '{dork_name}'?"):
+            self.source_manager.remove_dork_from_source(self.current_source_id, dork_name)
+            self.refresh_dorks_list()
+            self._clear_dork_form()
+    
+    def save_dork(self):
+        """Save current dork (called when saving source)."""
+        if not self.current_source_id:
+            return
+        
+        name = self.dork_name_var.get().strip()
+        pattern = self.dork_pattern_var.get().strip()
+        
+        if not name or not pattern:
+            return  # Skip invalid dorks
+        
+        try:
+            priority = int(self.dork_priority_var.get())
+            max_results = int(self.dork_max_results_var.get())
+        except ValueError:
+            priority = 5
+            max_results = 10
+        
+        filetype = self.dork_filetype_var.get().strip() or None
+        
+        dork = SearchDork(
+            name=name,
+            pattern=pattern,
+            description=self.dork_description_var.get().strip(),
+            priority=priority,
+            enabled=self.dork_enabled_var.get(),
+            max_results=max_results,
+            filetype=filetype
+        )
+        
+        # Check if updating existing dork
+        config = self.source_manager.get_source(self.current_source_id)
+        if config:
+            existing_dork = config.get_dork(name)
+            if existing_dork:
+                # Update existing
+                self.source_manager.update_dork_in_source(self.current_source_id, name, dork)
+            else:
+                # Add new
+                self.source_manager.add_dork_to_source(self.current_source_id, dork)
+    
+    def test_dork(self):
+        """Test selected dork with a sample query."""
+        selection = self.dorks_tree.selection()
+        if not selection:
+            messagebox.showwarning("Aviso", "Selecione um dork para testar.")
+            return
+        
+        if not self.current_source_id:
+            return
+        
+        # Get test query from user
+        test_query = simpledialog.askstring("Teste de Dork", "Digite um termo de busca para testar:")
+        if not test_query:
+            return
+        
+        item = selection[0]
+        values = self.dorks_tree.item(item)['values']
+        dork_name = values[0]
+        
+        config = self.source_manager.get_source(self.current_source_id)
+        if not config:
+            return
+        
+        dork = config.get_dork(dork_name)
+        if not dork:
+            return
+        
+        # Format the query
+        primary_domain = config.domain_patterns[0] if config.domain_patterns else ""
+        formatted_query = dork.format_query(test_query, primary_domain)
+        
+        # Show result
+        messagebox.showinfo("Resultado do Teste", 
+                          f"Dork: {dork_name}\n"
+                          f"Padrão: {dork.pattern}\n"
+                          f"Query de teste: {test_query}\n"
+                          f"Resultado formatado: {formatted_query}")
     
     def reset_to_defaults(self):
         """Reset all sources to default configurations."""

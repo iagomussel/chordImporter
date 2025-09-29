@@ -3,6 +3,44 @@
     "name": "CifraClub",
     "domain_patterns": ["cifraclub.com.br"],
     "url_suffix": "/imprimir.html",
+    "search_dorks": [
+      {
+        "name": "Site Específico",
+        "pattern": "site:cifraclub.com.br {query}",
+        "description": "Busca apenas no CifraClub",
+        "priority": 10,
+        "enabled": true,
+        "max_results": 15,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": "cifraclub.com.br"
+      },
+      {
+        "name": "Cifra + Acordes",
+        "pattern": "site:cifraclub.com.br {query} cifra acordes",
+        "description": "Busca por cifras e acordes no CifraClub",
+        "priority": 9,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": "cifraclub.com.br"
+      },
+      {
+        "name": "Busca Geral",
+        "pattern": "{query} cifra acordes",
+        "description": "Busca geral por cifras e acordes",
+        "priority": 5,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": null
+      }
+    ],
     "title_selector": {
       "css_selector": "#folha1 > div.cifra_header.js-cifra_header > h1 > a",
       "xpath_selector": null,
@@ -92,6 +130,32 @@
     "name": "Letras.mus.br",
     "domain_patterns": ["letras.mus.br"],
     "url_suffix": "",
+    "search_dorks": [
+      {
+        "name": "Site Específico",
+        "pattern": "site:letras.mus.br {query}",
+        "description": "Busca apenas no Letras.mus.br",
+        "priority": 10,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": "letras.mus.br"
+      },
+      {
+        "name": "Letras + Música",
+        "pattern": "site:letras.mus.br {query} letra música",
+        "description": "Busca por letras de música",
+        "priority": 8,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": "letras.mus.br"
+      }
+    ],
     "title_selector": {
       "css_selector": "h1.head-title",
       "xpath_selector": null,
@@ -179,6 +243,32 @@
     "name": "Ultimate Guitar",
     "domain_patterns": ["ultimate-guitar.com"],
     "url_suffix": "",
+    "search_dorks": [
+      {
+        "name": "Site Específico",
+        "pattern": "site:ultimate-guitar.com {query}",
+        "description": "Busca apenas no Ultimate Guitar",
+        "priority": 10,
+        "enabled": true,
+        "max_results": 10,
+        "country": "us",
+        "language": "en",
+        "filetype": null,
+        "site_filter": "ultimate-guitar.com"
+      },
+      {
+        "name": "Tabs + Chords",
+        "pattern": "site:ultimate-guitar.com {query} tabs chords",
+        "description": "Busca por tabs e acordes",
+        "priority": 9,
+        "enabled": true,
+        "max_results": 10,
+        "country": "us",
+        "language": "en",
+        "filetype": null,
+        "site_filter": "ultimate-guitar.com"
+      }
+    ],
     "title_selector": {
       "css_selector": "h1._3xXoI",
       "xpath_selector": null,
@@ -266,6 +356,44 @@
     "name": "Generic",
     "domain_patterns": ["*"],
     "url_suffix": "",
+    "search_dorks": [
+      {
+        "name": "Busca Geral",
+        "pattern": "{query} cifra acordes",
+        "description": "Busca geral por cifras e acordes",
+        "priority": 5,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": null
+      },
+      {
+        "name": "Filetype PDF",
+        "pattern": "{query} filetype:pdf",
+        "description": "Busca por arquivos PDF",
+        "priority": 6,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": "pdf",
+        "site_filter": null
+      },
+      {
+        "name": "Tabs Guitar",
+        "pattern": "{query} tabs guitar chords",
+        "description": "Busca por tabs de guitarra",
+        "priority": 4,
+        "enabled": true,
+        "max_results": 10,
+        "country": "br",
+        "language": "pt-br",
+        "filetype": null,
+        "site_filter": null
+      }
+    ],
     "title_selector": {
       "css_selector": "h1",
       "xpath_selector": null,

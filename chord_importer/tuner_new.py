@@ -579,3 +579,4 @@ if __name__ == "__main__":
     root.withdraw()  # Hide root window
     tuner_window = TunerWindow()
     root.mainloop()
+

@@ -19,11 +19,9 @@ except ImportError:
 try:
     from .database import get_database
     from .settings import get_settings
-    from .song_utilities import MusicTheoryEngine
 except ImportError:
     from chord_importer.database import get_database
     from chord_importer.settings import get_settings
-    from chord_importer.song_utilities import MusicTheoryEngine
 
 
 class SimpleMusicVisualizer:
@@ -443,7 +441,7 @@ class SimpleMusicVisualizer:
             return self._transpose_line_with_fallback(line)
     
     def _transpose_line_with_music21(self, line: str) -> str:
-        """Transpose line using music21 for note transposition and MusicTheoryEngine for chord logic."""
+        """Transpose line using music21 for basic note transposition."""
         try:
             # Use regex substitution to preserve spacing like the fallback method
             chord_pattern = r'(?<!\w)[A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?(?:\d+)?)?(?:\d+)?(?!\w)'
@@ -451,20 +449,16 @@ class SimpleMusicVisualizer:
             def transpose_match(match):
                 chord = match.group()
                 try:
-                    # First try MusicTheoryEngine
-                    return MusicTheoryEngine.transpose_chord(chord, self.current_transpose)
+                    # Try music21 for basic note transposition
+                    root_match = re.match(r'^([A-G][#b]?)', chord)
+                    if root_match:
+                        root_note = root_match.group(1)
+                        note_obj = pitch.Pitch(root_note)
+                        transposed_note = note_obj.transpose(interval.Interval(self.current_transpose))
+                        return chord.replace(root_note, str(transposed_note), 1)
                 except:
-                    # If MusicTheoryEngine fails, try music21 for basic note transposition
-                    try:
-                        root_match = re.match(r'^([A-G][#b]?)', chord)
-                        if root_match:
-                            root_note = root_match.group(1)
-                            note_obj = pitch.Pitch(root_note)
-                            transposed_note = note_obj.transpose(interval.Interval(self.current_transpose))
-                            return chord.replace(root_note, str(transposed_note), 1)
-                    except:
-                        pass
-                    return chord  # Return original if all fails
+                    pass
+                return chord  # Return original if transposition fails
             
             return re.sub(chord_pattern, transpose_match, line)
         except:
@@ -472,17 +466,49 @@ class SimpleMusicVisualizer:
             return self._transpose_line_with_fallback(line)
     
     def _transpose_line_with_fallback(self, line: str) -> str:
-        """Transpose line using fallback method."""
+        """Transpose line using simple fallback method."""
         chord_pattern = r'(?<!\w)[A-G](?:[#b]|##|bb)?(?:maj|min|m|dim|aug|sus|add|°|º|\+|M)?(?:\d+)?(?:M)?(?:\([^)]*\))?(?:sus[24]?|add\d+|no\d+)*(?:/[A-G](?:[#b]|##|bb)?(?:\d+)?)?(?:\d+)?(?!\w)'
         
         def transpose_match(match):
             chord = match.group()
             try:
-                return MusicTheoryEngine.transpose_chord(chord, self.current_transpose)
+                return self._simple_transpose_chord(chord, self.current_transpose)
             except:
                 return chord  # Return original if transposition fails
         
         return re.sub(chord_pattern, transpose_match, line)
+    
+    def _simple_transpose_chord(self, chord: str, semitones: int) -> str:
+        """Simple chord transposition using chromatic scale."""
+        if not chord or semitones == 0:
+            return chord
+        
+        # Chromatic scale
+        notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        
+        # Extract root note
+        root_match = re.match(r'^([A-G][#b]?)', chord)
+        if not root_match:
+            return chord
+        
+        root_note = root_match.group(1)
+        
+        # Convert flats to sharps for easier processing
+        flat_to_sharp = {'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#'}
+        if root_note in flat_to_sharp:
+            root_note = flat_to_sharp[root_note]
+        
+        try:
+            # Find current position
+            current_pos = notes.index(root_note)
+            # Calculate new position
+            new_pos = (current_pos + semitones) % 12
+            new_root = notes[new_pos]
+            
+            # Replace root note in chord
+            return chord.replace(root_match.group(1), new_root, 1)
+        except (ValueError, IndexError):
+            return chord
     
     def transpose(self, semitones: int):
         """Transpose the current song."""

@@ -16,20 +16,18 @@ try:
     from .tuner_new import TunerWindow
     from .cipher_manager import show_cipher_manager
     from .settings_window import show_settings_window
-    from .song_utilities import show_song_utilities
     from .chord_identifier import show_chord_identifier
     from .music_visualizer import show_music_visualizer
-    from .serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic
+    from .serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
 except ImportError:
     from chord_importer.database import get_database
     from chord_importer.settings import get_settings
     from chord_importer.tuner_new import TunerWindow
     from chord_importer.cipher_manager import show_cipher_manager
     from chord_importer.settings_window import show_settings_window
-    from chord_importer.song_utilities import show_song_utilities
     from chord_importer.chord_identifier import show_chord_identifier
     from chord_importer.music_visualizer import show_music_visualizer
-    from chord_importer.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic
+    from chord_importer.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
 
 
 class ToolCard(tk.Frame):
@@ -294,6 +292,49 @@ class QuickSearchFrame(tk.Frame):
         self.search_entry.bind("<Return>", self.on_search)
         self.search_entry.bind("<KeyRelease>", self.on_key_release)
         
+        # Source selection
+        source_frame = tk.Frame(search_frame, bg="#ffffff")
+        source_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(source_frame, text="Fonte:", font=("Arial", 9), bg="#ffffff").pack(side=tk.LEFT)
+        
+        self.source_var = tk.StringVar(value="Todas as Fontes")
+        self.source_combo = ttk.Combobox(
+            source_frame,
+            textvariable=self.source_var,
+            state="readonly",
+            font=("Arial", 9),
+            width=20
+        )
+        self.source_combo.pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
+        
+        # Load sources
+        self.load_sources()
+        
+        # Bind source selection to show dorks
+        self.source_combo.bind('<<ComboboxSelected>>', self.on_source_changed)
+        
+        # Dorks info frame
+        self.dorks_frame = tk.LabelFrame(
+            search_frame,
+            text="Dorks Disponíveis",
+            bg="#ffffff",
+            fg="#666666",
+            font=("Arial", 8)
+        )
+        self.dorks_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.dorks_label = tk.Label(
+            self.dorks_frame,
+            text="Selecione uma fonte para ver os dorks disponíveis",
+            font=("Arial", 8),
+            bg="#ffffff",
+            fg="#888888",
+            wraplength=250,
+            justify=tk.LEFT
+        )
+        self.dorks_label.pack(padx=5, pady=3)
+        
         # Search button
         self.search_btn = tk.Button(
             search_frame,
@@ -332,11 +373,80 @@ class QuickSearchFrame(tk.Frame):
         
         self.load_recent_searches()
     
+    def load_sources(self):
+        """Load available sources for selection."""
+        try:
+            from .source_configs import get_source_manager
+        except ImportError:
+            from chord_importer.source_configs import get_source_manager
+        
+        try:
+            source_manager = get_source_manager()
+            sources = source_manager.list_sources()
+            
+            # Create source options
+            source_options = ["Todas as Fontes"]
+            self.source_mapping = {"Todas as Fontes": None}
+            
+            for source_id, source_name in sources.items():
+                display_name = f"{source_name}"
+                source_options.append(display_name)
+                self.source_mapping[display_name] = source_id
+            
+            self.source_combo['values'] = source_options
+            
+        except Exception as e:
+            print(f"Error loading sources: {e}")
+            self.source_combo['values'] = ["Todas as Fontes"]
+            self.source_mapping = {"Todas as Fontes": None}
+    
+    def on_source_changed(self, event=None):
+        """Handle source selection change."""
+        selected_source = self.source_var.get()
+        source_id = self.source_mapping.get(selected_source)
+        
+        if not source_id:
+            self.dorks_label.config(text="Usando dorks de todas as fontes disponíveis")
+            return
+        
+        try:
+            from .source_configs import get_source_manager
+        except ImportError:
+            from chord_importer.source_configs import get_source_manager
+        
+        try:
+            source_manager = get_source_manager()
+            config = source_manager.get_source(source_id)
+            
+            if config and config.search_dorks:
+                enabled_dorks = config.get_enabled_dorks()
+                if enabled_dorks:
+                    dork_info = f"Dorks ativos ({len(enabled_dorks)}):\n"
+                    for i, dork in enumerate(enabled_dorks[:3], 1):  # Show first 3
+                        dork_info += f"{i}. {dork.name} (prioridade: {dork.priority})\n"
+                    
+                    if len(enabled_dorks) > 3:
+                        dork_info += f"... e mais {len(enabled_dorks) - 3} dorks"
+                    
+                    self.dorks_label.config(text=dork_info.strip())
+                else:
+                    self.dorks_label.config(text="Nenhum dork ativo para esta fonte")
+            else:
+                self.dorks_label.config(text="Nenhum dork configurado para esta fonte")
+                
+        except Exception as e:
+            self.dorks_label.config(text=f"Erro ao carregar dorks: {str(e)}")
+    
     def on_search(self, event=None):
         """Handle search."""
         query = self.search_var.get().strip()
         if query:
-            self.search_callback(query)
+            # Get selected source
+            selected_source = self.source_var.get()
+            source_id = self.source_mapping.get(selected_source)
+            
+            # Pass both query and source_id to callback
+            self.search_callback(query, source_id)
             self.add_to_recent(query)
     
     def on_key_release(self, event):
@@ -605,12 +715,6 @@ class MusicalToolsDashboard(tk.Tk):
                 "description": "Search for chords and songs across the web instantly",
                 "icon": "🔍",
                 "command": self.focus_search_tab
-            },
-            {
-                "title": "Song Utilities",
-                "description": "Transpose, analyze, and work with chord progressions",
-                "icon": "🎼",
-                "command": self.open_song_utilities
             },
             {
                 "title": "Chord Identifier",
@@ -964,13 +1068,6 @@ class MusicalToolsDashboard(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", f"Error opening settings: {str(e)}")
     
-    def open_song_utilities(self):
-        """Open the Song Utilities window."""
-        try:
-            show_song_utilities(self)
-            self.status_bar.set_status("Song Utilities opened")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error opening Song Utilities: {str(e)}")
     
     def open_chord_identifier(self):
         """Open the Chord Identifier window."""
@@ -1031,17 +1128,29 @@ For more information, visit our documentation."""
     
     # Search functionality
     
-    def perform_search(self, query: str):
+    def perform_search(self, query: str, source_id: str = None):
         """Perform a search."""
         try:
-            self.status_bar.set_status(f"Searching for: {query}")
+            if source_id:
+                self.status_bar.set_status(f"Searching for: {query} (Source: {source_id})")
+            else:
+                self.status_bar.set_status(f"Searching for: {query} (All sources)")
             
             # Clear previous results
             for item in self.results_tree.get_children():
                 self.results_tree.delete(item)
             
-            # Perform search (using existing search functionality)
-            results = search_cifraclub(query)
+            # Perform search using source dorks
+            if source_id:
+                # Import the specific search function
+                try:
+                    from .serper import search_with_source_dorks
+                except ImportError:
+                    from chord_importer.serper import search_with_source_dorks
+                
+                results = search_with_source_dorks(query, source_id)
+            else:
+                results = search_all_sources_with_dorks(query)
             self.search_results = results
             
             # Populate results

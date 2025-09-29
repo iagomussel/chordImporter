@@ -447,3 +447,74 @@ def search_chord_sequence_dynamic(chord_sequence: str, callback=None, country: s
                 callback(i, get_key_name(i), [])
             yield i, get_key_name(i), []
 
+
+def search_with_source_dorks(query: str, source_id: Optional[str] = None, country: str = "br", language: str = "pt-br") -> List[SearchResult]:
+    """Search using dorks from source configurations.
+    
+    Args:
+        query: Search query
+        source_id: Specific source ID to use dorks from, or None for all sources
+        country: Country code for search
+        language: Language code for search
+        
+    Returns:
+        List of search results from all applicable dorks
+    """
+    try:
+        # Import source manager
+        try:
+            from .source_configs import get_source_manager
+        except ImportError:
+            from chord_importer.source_configs import get_source_manager
+        
+        source_manager = get_source_manager()
+        all_results = []
+        seen_urls = set()
+        
+        # Get search queries from dorks
+        search_queries = source_manager.search_with_dorks(query, source_id)
+        
+        if not search_queries:
+            # Fallback to basic search if no dorks available
+            return search_query(query, country, language)
+        
+        # Execute each dork query
+        for dork_query in search_queries[:5]:  # Limit to top 5 dorks to avoid too many requests
+            try:
+                # Use existing search_query function
+                results = search_query(dork_query, country, language, num=10)
+                
+                # Add unique results
+                for result in results:
+                    if result.url not in seen_urls:
+                        seen_urls.add(result.url)
+                        all_results.append(result)
+                        
+                        # Limit total results
+                        if len(all_results) >= 50:
+                            break
+                
+                if len(all_results) >= 50:
+                    break
+                    
+            except Exception as e:
+                print(f"Error executing dork query '{dork_query}': {e}")
+                continue
+        
+        return all_results
+        
+    except Exception as e:
+        print(f"Error in search_with_source_dorks: {e}")
+        # Fallback to basic search
+        return search_query(query, country, language)
+
+
+def search_cifraclub_with_dorks(query: str) -> List[SearchResult]:
+    """Search CifraClub using its configured dorks."""
+    return search_with_source_dorks(query, source_id="cifraclub")
+
+
+def search_all_sources_with_dorks(query: str) -> List[SearchResult]:
+    """Search all sources using their configured dorks."""
+    return search_with_source_dorks(query, source_id=None)
+
