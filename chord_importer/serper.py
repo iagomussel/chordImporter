@@ -405,7 +405,7 @@ def search_chord_sequence_dynamic(chord_sequence: str, callback=None, country: s
             
             # Request more results to account for potential duplicates
             # We'll request 2x to ensure we get enough unique results for this key
-            search_limit = max(num_per_key * 2, 20)
+            search_limit = max(num_per_key * 2, 100)
             key_results = search_query(query, country=country, language=language, num=search_limit)
             
             # Process and enhance results for this key

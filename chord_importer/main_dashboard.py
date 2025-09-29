@@ -358,7 +358,7 @@ class QuickSearchFrame(tk.Frame):
         """Load recent searches from database."""
         try:
             db = get_database()
-            history = db.get_search_history(limit=10)
+            history = db.get_search_history(limit=100)
             for item in history:
                 self.recent_listbox.insert(tk.END, item['query'])
         except Exception:
@@ -376,7 +376,7 @@ class QuickSearchFrame(tk.Frame):
                 unique_items.append(item)
         
         self.recent_listbox.delete(0, tk.END)
-        for item in unique_items[:10]:  # Keep only 10 recent
+        for item in unique_items[:50]:  # Keep only 50 recent
             self.recent_listbox.insert(tk.END, item)
 
 
@@ -918,7 +918,7 @@ class MusicalToolsDashboard(tk.Tk):
             self.activity_text.delete(1.0, tk.END)
             
             # Get recent searches
-            history = self.db.get_search_history(limit=5)
+            history = self.db.get_search_history(limit=20)
             if history:
                 self.activity_text.insert(tk.END, "Recent Searches:\\n")
                 for item in history:
@@ -926,7 +926,7 @@ class MusicalToolsDashboard(tk.Tk):
                 self.activity_text.insert(tk.END, "\\n")
             
             # Get recent songs
-            songs = self.db.get_songs(limit=5)
+            songs = self.db.get_songs(limit=20)
             if songs:
                 self.activity_text.insert(tk.END, "Recently Added Songs:\\n")
                 for song in songs:

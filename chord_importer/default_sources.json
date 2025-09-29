@@ -26,7 +26,8 @@
       "regex_pattern": "",
       "text_search": "",
       "attribute": null,
-      "fallback_selectors": [".cifra_tom", "#cifra_tom"]
+      "fallback_selectors": [".cifra_tom", "#cifra_tom"],
+      "join_separator": null
     },
     "capo_selector": {
       "css_selector": "#cifra_capo > a",
@@ -34,7 +35,8 @@
       "regex_pattern": "",
       "text_search": "",
       "attribute": null,
-      "fallback_selectors": [".cifra_capo", "#cifra_capo"]
+      "fallback_selectors": [".cifra_capo", "#cifra_capo"],
+      "join_separator": null
     },
     "content_selector": {
       "css_selector": "div.wrap_pre.cifra-mono.cifra_cnt.js-cifra_content > pre",

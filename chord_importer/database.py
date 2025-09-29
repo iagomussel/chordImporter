@@ -32,6 +32,12 @@ class ChordImporterDB:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
+            # Configure SQLite for better performance with large content
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA cache_size=10000")
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            
             # Check if we need to migrate existing database
             self._migrate_database(cursor)
             
@@ -301,7 +307,7 @@ class ChordImporterDB:
                 
                 return cursor.lastrowid
     
-    def get_songs(self, limit: int = 100, offset: int = 0, 
+    def get_songs(self, limit: int = 10000, offset: int = 0, 
                   search_term: str = None, favorites_only: bool = False) -> List[Dict]:
         """Get songs from database with optional filtering."""
         with sqlite3.connect(self.db_path) as conn:
@@ -400,7 +406,7 @@ class ChordImporterDB:
                 VALUES (?, ?, ?)
             """, (query, dork_name, results_count))
     
-    def get_search_history(self, limit: int = 50) -> List[Dict]:
+    def get_search_history(self, limit: int = 1000) -> List[Dict]:
         """Get recent search history."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -514,7 +520,7 @@ class ChordImporterDB:
             is_local=True, source="Local"
         )
     
-    def search_songs_full_text(self, query: str, limit: int = 50) -> List[Dict]:
+    def search_songs_full_text(self, query: str, limit: int = 5000) -> List[Dict]:
         """Search songs using full-text search."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -540,7 +546,7 @@ class ChordImporterDB:
             
             return songs
     
-    def get_songs_by_key(self, key_signature: str, limit: int = 50) -> List[Dict]:
+    def get_songs_by_key(self, key_signature: str, limit: int = 2000) -> List[Dict]:
         """Get songs by key signature."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -555,7 +561,7 @@ class ChordImporterDB:
             
             return [dict(row) for row in cursor.fetchall()]
     
-    def get_songs_by_chord_progression(self, progression_pattern: str, limit: int = 50) -> List[Dict]:
+    def get_songs_by_chord_progression(self, progression_pattern: str, limit: int = 2000) -> List[Dict]:
         """Get songs by chord progression pattern."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -747,7 +753,7 @@ class ChordImporterDB:
                 'total_searches': total_searches
             }
     
-    def get_search_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_search_history(self, limit: int = 500) -> List[Dict[str, Any]]:
         """Get search history."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row

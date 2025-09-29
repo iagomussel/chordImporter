@@ -501,9 +501,10 @@ class SourceConfigWindow:
             self.test_results.insert(tk.END, f"Metadados: {song_data.get('metadata', {})}\n\n")
             
             self.test_results.insert(tk.END, "=== CONTEÚDO FORMATADO ===\n")
-            self.test_results.insert(tk.END, formatted_content[:1000])
-            if len(formatted_content) > 1000:
-                self.test_results.insert(tk.END, "\n... (truncado)")
+            self.test_results.insert(tk.END, formatted_content)
+            self.test_results.insert(tk.END, f"\n\n=== ESTATÍSTICAS ===\n")
+            self.test_results.insert(tk.END, f"Tamanho total do conteúdo: {len(formatted_content)} caracteres\n")
+            self.test_results.insert(tk.END, f"Linhas: {formatted_content.count(chr(10)) + 1}\n")
             
         except Exception as e:
             self.test_results.delete(1.0, tk.END)

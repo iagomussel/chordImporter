@@ -602,7 +602,7 @@ class App(tk.Tk):
                 
                 for i, result in enumerate(self.results):
                     try:
-                        self.status.set(f"Salvando música {i+1}/{total_songs}: {result.title[:50]}...")
+                        self.status.set(f"Salvando música {i+1}/{total_songs}: {result.title}...")
                         
                         # Extract artist and title
                         title_parts = result.title.split(" - ", 1)
@@ -738,7 +738,7 @@ class App(tk.Tk):
                 favorites_only = favorites_var.get()
                 
                 songs = self.db.get_songs(
-                    limit=1000,
+                    limit=50000,
                     search_term=search_term if search_term else None,
                     favorites_only=favorites_only
                 )

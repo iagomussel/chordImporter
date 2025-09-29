@@ -466,7 +466,7 @@ class CipherManagerWindow:
             if self.search_var.get().strip():
                 songs = self.search_results
             else:
-                songs = self.db.get_songs(limit=1000)
+                songs = self.db.get_songs(limit=50000)
             
             # Apply filters
             filter_type = self.filter_type.get()
@@ -523,7 +523,7 @@ class CipherManagerWindow:
     def refresh_song_list(self):
         """Refresh the song list."""
         try:
-            songs = self.db.get_songs(limit=1000)
+            songs = self.db.get_songs(limit=50000)
             self.search_results = songs
             self.populate_song_list(songs)
         except Exception as e:
