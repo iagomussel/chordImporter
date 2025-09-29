@@ -278,7 +278,7 @@ class AdvancedGuitarTuner:
         
         try:
             # Convert audio data to numpy array
-            audio_data = np.frombuffer(in_data, dtype=np.float64)
+            audio_data = np.frombuffer(in_data, dtype=np.float32)
             
             # Initialize window samples if needed
             if self.window_samples is None:
@@ -536,7 +536,7 @@ class AdvancedGuitarTuner:
             audio = pyaudio.PyAudio()
             
             self.audio_stream = audio.open(
-                format=pyaudio.paFloat64,
+                format=pyaudio.paFloat32,  # Changed from paFloat64 to paFloat32 for compatibility
                 channels=1,
                 rate=self.SAMPLE_FREQ,
                 input=True,
@@ -623,7 +623,7 @@ class AdvancedGuitarTuner:
         if filename:
             try:
                 # Convert to numpy array and save
-                audio_array = np.array(self.recording_data, dtype=np.float64)
+                audio_array = np.array(self.recording_data, dtype=np.float32)
                 
                 # Normalize to 16-bit range
                 audio_normalized = np.int16(audio_array * 32767)

@@ -2,4 +2,6 @@
 .venv
 build
 dist
-
+**/_pycache_
+_pycache_
+_pycache__/*

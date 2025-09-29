@@ -953,8 +953,15 @@ class SongUtilitiesWindow:
         try:
             songs = self.db.get_songs()
             song_names = [f"{song['title']} - {song.get('artist', 'Unknown')}" for song in songs]
-            self.song_combo['values'] = song_names
-            self.practice_song_combo['values'] = song_names
+            
+            # Update song combo if it exists
+            if hasattr(self, 'song_combo'):
+                self.song_combo['values'] = song_names
+            
+            # Update practice song combo if it exists
+            if hasattr(self, 'practice_song_combo'):
+                self.practice_song_combo['values'] = song_names
+                
         except Exception as e:
             messagebox.showerror("Error", f"Error loading songs: {str(e)}")
     
