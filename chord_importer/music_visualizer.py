@@ -37,12 +37,21 @@ class SimpleMusicVisualizer:
         # Create window
         if parent:
             self.window = tk.Toplevel(parent)
+            # Keep window on top of parent initially
+            self.window.transient(parent)
         else:
             self.window = tk.Tk()
         
         self.window.title("Music Visualizer - Musical Tools Suite")
         self.window.geometry("1200x800")
+        self.window.minsize(800, 600)  # Set minimum size
         self.window.resizable(True, True)
+        
+        # Configure window behavior
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # Store original focus method for messagebox fixes
+        self._original_focus = None
         
         # State variables
         self.current_song = None
@@ -62,6 +71,48 @@ class SimpleMusicVisualizer:
         self.setup_ui()
         self.center_window()
         self.load_songs()
+        
+        # Set focus to this window
+        self.window.focus_force()
+        self.window.lift()
+    
+    def on_closing(self):
+        """Handle window closing."""
+        # Stop auto-scroll if running
+        if self.auto_scroll:
+            self.stop_auto_scroll()
+        
+        # Destroy window
+        self.window.destroy()
+    
+    def _show_error(self, title, message):
+        """Show error message and maintain focus."""
+        self._store_focus()
+        messagebox.showerror(title, message, parent=self.window)
+        self._restore_focus()
+    
+    def _show_warning(self, title, message):
+        """Show warning message and maintain focus."""
+        self._store_focus()
+        messagebox.showwarning(title, message, parent=self.window)
+        self._restore_focus()
+    
+    def _show_info(self, title, message):
+        """Show info message and maintain focus."""
+        self._store_focus()
+        messagebox.showinfo(title, message, parent=self.window)
+        self._restore_focus()
+    
+    def _store_focus(self):
+        """Store current focus."""
+        self._original_focus = self.window.focus_get()
+    
+    def _restore_focus(self):
+        """Restore focus to this window."""
+        self.window.after(100, lambda: self.window.focus_force())
+        self.window.after(150, lambda: self.window.lift())
+        if self._original_focus:
+            self.window.after(200, lambda: self._original_focus.focus_set())
     
     def center_window(self):
         """Center the window on screen."""
@@ -88,72 +139,107 @@ class SimpleMusicVisualizer:
         self.create_bottom_controls(main_frame)
     
     def create_controls(self, parent):
-        """Create top control panel."""
-        controls_frame = tk.Frame(parent)
-        controls_frame.pack(fill=tk.X, pady=(0, 10))
+        """Create top control panel with improved layout."""
+        controls_frame = tk.Frame(parent, bg="#f8f9fa", relief=tk.RAISED, bd=1)
+        controls_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
         
-        # Song selection
-        song_frame = tk.Frame(controls_frame)
-        song_frame.pack(fill=tk.X, pady=(0, 5))
+        # Song selection section
+        song_section = tk.LabelFrame(controls_frame, text="Seleção de Música", 
+                                   font=("Arial", 10, "bold"), bg="#f8f9fa", fg="#333")
+        song_section.pack(fill=tk.X, padx=10, pady=5)
         
-        tk.Label(song_frame, text="Música:", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        song_frame = tk.Frame(song_section, bg="#f8f9fa")
+        song_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        self.song_combo = ttk.Combobox(song_frame, state="readonly", width=50)
+        tk.Label(song_frame, text="Música:", font=("Arial", 10, "bold"), 
+                bg="#f8f9fa").pack(side=tk.LEFT)
+        
+        self.song_combo = ttk.Combobox(song_frame, state="readonly", width=50, font=("Arial", 10))
         self.song_combo.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
         self.song_combo.bind("<<ComboboxSelected>>", self.on_song_selected)
         
-        tk.Button(song_frame, text="Atualizar", command=self.load_songs,
-                 bg="#4CAF50", fg="white", font=("Arial", 9, "bold")).pack(side=tk.RIGHT, padx=(10, 0))
+        refresh_btn = tk.Button(song_frame, text="🔄 Atualizar", command=self.load_songs,
+                               bg="#4CAF50", fg="white", font=("Arial", 9, "bold"),
+                               relief=tk.FLAT, padx=15, pady=5, cursor="hand2")
+        refresh_btn.pack(side=tk.RIGHT, padx=(10, 0))
         
-        # Transposition and display controls
-        control_frame = tk.Frame(controls_frame)
-        control_frame.pack(fill=tk.X)
+        # Controls section
+        controls_section = tk.Frame(controls_frame, bg="#f8f9fa")
+        controls_section.pack(fill=tk.X, padx=10, pady=(0, 5))
+        
+        # Left controls (Transposition and Font)
+        left_controls = tk.Frame(controls_section, bg="#f8f9fa")
+        left_controls.pack(side=tk.LEFT, fill=tk.Y)
         
         # Transposition
-        transpose_frame = tk.Frame(control_frame)
-        transpose_frame.pack(side=tk.LEFT)
+        transpose_frame = tk.LabelFrame(left_controls, text="Transposição", 
+                                      font=("Arial", 9, "bold"), bg="#f8f9fa", fg="#333")
+        transpose_frame.pack(side=tk.LEFT, padx=(0, 15), pady=2)
         
-        tk.Label(transpose_frame, text="Transposição:", font=("Arial", 10)).pack(side=tk.LEFT)
+        transpose_controls = tk.Frame(transpose_frame, bg="#f8f9fa")
+        transpose_controls.pack(padx=5, pady=5)
         
-        tk.Button(transpose_frame, text="-", command=lambda: self.transpose(-1),
-                 width=3, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(5, 0))
+        tk.Button(transpose_controls, text="-", command=lambda: self.transpose(-1),
+                 width=3, font=("Arial", 12, "bold"), bg="#f44336", fg="white",
+                 relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT)
         
-        self.transpose_label = tk.Label(transpose_frame, text="0", font=("Arial", 12, "bold"),
-                                      width=3, relief=tk.SUNKEN, bg="white")
-        self.transpose_label.pack(side=tk.LEFT, padx=(2, 2))
+        self.transpose_label = tk.Label(transpose_controls, text="0", font=("Arial", 12, "bold"),
+                                      width=4, relief=tk.SUNKEN, bg="white", fg="#333")
+        self.transpose_label.pack(side=tk.LEFT, padx=3)
         
-        tk.Button(transpose_frame, text="+", command=lambda: self.transpose(1),
-                 width=3, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(transpose_controls, text="+", command=lambda: self.transpose(1),
+                 width=3, font=("Arial", 12, "bold"), bg="#4CAF50", fg="white",
+                 relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT)
         
-        tk.Button(transpose_frame, text="Reset", command=self.reset_transpose,
-                 font=("Arial", 9)).pack(side=tk.LEFT, padx=(5, 0))
+        tk.Button(transpose_controls, text="Reset", command=self.reset_transpose,
+                 font=("Arial", 8), bg="#FF9800", fg="white", relief=tk.FLAT,
+                 cursor="hand2", padx=8).pack(side=tk.LEFT, padx=(5, 0))
         
         # Font size
-        font_frame = tk.Frame(control_frame)
-        font_frame.pack(side=tk.LEFT, padx=(20, 0))
+        font_frame = tk.LabelFrame(left_controls, text="Tamanho da Fonte", 
+                                 font=("Arial", 9, "bold"), bg="#f8f9fa", fg="#333")
+        font_frame.pack(side=tk.LEFT, padx=(0, 15), pady=2)
         
-        tk.Label(font_frame, text="Tamanho:", font=("Arial", 10)).pack(side=tk.LEFT)
+        font_controls = tk.Frame(font_frame, bg="#f8f9fa")
+        font_controls.pack(padx=5, pady=5)
         
-        tk.Button(font_frame, text="A-", command=lambda: self.change_font_size(-2),
-                 width=3, font=("Arial", 9)).pack(side=tk.LEFT, padx=(5, 0))
+        tk.Button(font_controls, text="A-", command=lambda: self.change_font_size(-2),
+                 width=3, font=("Arial", 10, "bold"), bg="#2196F3", fg="white",
+                 relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT)
         
-        tk.Button(font_frame, text="A+", command=lambda: self.change_font_size(2),
-                 width=3, font=("Arial", 9)).pack(side=tk.LEFT, padx=(2, 0))
+        self.font_size_label = tk.Label(font_controls, text=str(self.font_size), 
+                                      font=("Arial", 10, "bold"), width=3,
+                                      relief=tk.SUNKEN, bg="white", fg="#333")
+        self.font_size_label.pack(side=tk.LEFT, padx=3)
         
-        # Auto-scroll
-        scroll_frame = tk.Frame(control_frame)
-        scroll_frame.pack(side=tk.RIGHT)
+        tk.Button(font_controls, text="A+", command=lambda: self.change_font_size(2),
+                 width=3, font=("Arial", 10, "bold"), bg="#2196F3", fg="white",
+                 relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT)
         
-        self.scroll_btn = tk.Button(scroll_frame, text="▶ Auto Scroll", command=self.toggle_auto_scroll,
-                                   bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
-        self.scroll_btn.pack(side=tk.RIGHT)
+        # Right controls (Auto-scroll)
+        right_controls = tk.Frame(controls_section, bg="#f8f9fa")
+        right_controls.pack(side=tk.RIGHT, fill=tk.Y)
         
-        tk.Label(scroll_frame, text="Velocidade:", font=("Arial", 10)).pack(side=tk.RIGHT, padx=(0, 5))
+        scroll_frame = tk.LabelFrame(right_controls, text="Auto Scroll", 
+                                   font=("Arial", 9, "bold"), bg="#f8f9fa", fg="#333")
+        scroll_frame.pack(side=tk.RIGHT, pady=2)
         
-        self.speed_scale = tk.Scale(scroll_frame, from_=0.1, to=3.0, resolution=0.1,
-                                   orient=tk.HORIZONTAL, length=100, command=self.on_speed_changed)
+        scroll_controls = tk.Frame(scroll_frame, bg="#f8f9fa")
+        scroll_controls.pack(padx=5, pady=5)
+        
+        tk.Label(scroll_controls, text="Velocidade:", font=("Arial", 9), 
+                bg="#f8f9fa").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.speed_scale = tk.Scale(scroll_controls, from_=0.1, to=3.0, resolution=0.1,
+                                   orient=tk.HORIZONTAL, length=80, command=self.on_speed_changed,
+                                   bg="#f8f9fa", font=("Arial", 8))
         self.speed_scale.set(1.0)
-        self.speed_scale.pack(side=tk.RIGHT, padx=(0, 5))
+        self.speed_scale.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.scroll_btn = tk.Button(scroll_controls, text="▶ Iniciar", command=self.toggle_auto_scroll,
+                                   bg="#2196F3", fg="white", font=("Arial", 9, "bold"),
+                                   relief=tk.FLAT, padx=10, pady=3, cursor="hand2")
+        self.scroll_btn.pack(side=tk.LEFT)
     
     def create_display_area(self, parent):
         """Create main display area."""
@@ -217,7 +303,7 @@ class SimpleMusicVisualizer:
             self.status_label.config(text=f"{len(songs)} músicas carregadas")
                 
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao carregar músicas: {str(e)}")
+            self._show_error("Erro", f"Erro ao carregar músicas: {str(e)}")
     
     def on_song_selected(self, event=None):
         """Handle song selection."""
@@ -426,6 +512,10 @@ class SimpleMusicVisualizer:
         self.font_size += delta
         self.font_size = max(8, min(32, self.font_size))  # Limit range
         
+        # Update font size display
+        if hasattr(self, 'font_size_label'):
+            self.font_size_label.config(text=str(self.font_size))
+        
         # Update font for all tags
         new_font = ("Consolas", self.font_size)
         chord_font = ("Consolas", self.font_size, "bold")
@@ -473,7 +563,7 @@ class SimpleMusicVisualizer:
         """Stop auto-scrolling."""
         self.auto_scroll = False
         self.scroll_running = False
-        self.scroll_btn.config(text="▶ Auto Scroll", bg="#2196F3")
+        self.scroll_btn.config(text="▶ Iniciar", bg="#2196F3")
     
     def on_speed_changed(self, value):
         """Handle scroll speed change."""
@@ -517,12 +607,12 @@ class SimpleMusicVisualizer:
                 self.status_label.config(text=f"Importado: {file_path}")
                 
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao importar arquivo: {str(e)}")
+                self._show_error("Erro", f"Erro ao importar arquivo: {str(e)}")
     
     def export_content(self):
         """Export current content."""
         if not self.current_content:
-            messagebox.showwarning("Aviso", "Nenhum conteúdo para exportar.")
+            self._show_warning("Aviso", "Nenhum conteúdo para exportar.")
             return
         
         file_path = filedialog.asksaveasfilename(
@@ -552,10 +642,10 @@ class SimpleMusicVisualizer:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(export_content)
                 
-                messagebox.showinfo("Sucesso", f"Conteúdo exportado para: {file_path}")
+                self._show_info("Sucesso", f"Conteúdo exportado para: {file_path}")
                 
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao exportar: {str(e)}")
+                self._show_error("Erro", f"Erro ao exportar: {str(e)}")
 
 
 def show_music_visualizer(parent=None):

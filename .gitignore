@@ -5,3 +5,4 @@ dist
 **/_pycache_
 _pycache_
 _pycache__/*
+chord_importer/__pycache__/*.pyc

@@ -591,13 +591,87 @@ class TranspositionEngine:
 class PracticeMetronome:
     """Simple metronome for practice sessions."""
     
-    def __init__(self):
+    def __init__(self, window=None):
+        self.window = window
         self.is_running = False
         self.bpm = 120
         self.beat_count = 4
         self.current_beat = 0
         self.after_id = None
         self.click_callback = None
+        self.sound_enabled = True
+        
+        # Try to initialize sound system
+        self._init_sound()
+    
+    def _init_sound(self):
+        """Initialize sound system for metronome clicks."""
+        try:
+            import winsound
+            self.winsound = winsound
+            self.sound_method = 'winsound'
+        except ImportError:
+            try:
+                import pygame
+                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+                self.pygame = pygame
+                self.sound_method = 'pygame'
+                # Create simple click sounds
+                self._create_click_sounds()
+            except ImportError:
+                print("Warning: No sound library available. Metronome will be visual only.")
+                self.sound_enabled = False
+                self.sound_method = None
+    
+    def _create_click_sounds(self):
+        """Create click sounds using pygame."""
+        if self.sound_method != 'pygame':
+            return
+        
+        import numpy as np
+        
+        # Create high-pitched click for downbeat
+        sample_rate = 22050
+        duration = 0.1
+        frequency_high = 1000
+        
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        wave_high = np.sin(2 * np.pi * frequency_high * t) * np.exp(-t * 10)
+        wave_high = (wave_high * 32767).astype(np.int16)
+        
+        # Create lower-pitched click for other beats
+        frequency_low = 800
+        wave_low = np.sin(2 * np.pi * frequency_low * t) * np.exp(-t * 10)
+        wave_low = (wave_low * 32767).astype(np.int16)
+        
+        # Convert to pygame sound
+        try:
+            self.click_high = self.pygame.sndarray.make_sound(np.array([wave_high, wave_high]).T)
+            self.click_low = self.pygame.sndarray.make_sound(np.array([wave_low, wave_low]).T)
+        except:
+            # Fallback if numpy is not available
+            self.sound_enabled = False
+    
+    def _play_click(self, is_downbeat=False):
+        """Play metronome click sound."""
+        if not self.sound_enabled:
+            return
+        
+        try:
+            if self.sound_method == 'winsound':
+                # Use system beep
+                if is_downbeat:
+                    self.winsound.Beep(1000, 100)  # Higher pitch for downbeat
+                else:
+                    self.winsound.Beep(800, 100)   # Lower pitch for other beats
+            elif self.sound_method == 'pygame':
+                # Use generated sounds
+                if is_downbeat and hasattr(self, 'click_high'):
+                    self.click_high.play()
+                elif hasattr(self, 'click_low'):
+                    self.click_low.play()
+        except Exception as e:
+            print(f"Error playing metronome sound: {e}")
     
     def set_tempo(self, bpm: int):
         """Set the metronome tempo."""
@@ -606,6 +680,15 @@ class PracticeMetronome:
     def set_time_signature(self, beats: int):
         """Set the time signature (beats per measure)."""
         self.beat_count = max(1, min(12, beats))
+    
+    def toggle_sound(self):
+        """Toggle sound on/off."""
+        self.sound_enabled = not self.sound_enabled
+        return self.sound_enabled
+    
+    def is_sound_enabled(self):
+        """Check if sound is enabled."""
+        return self.sound_enabled
     
     def start(self, click_callback=None):
         """Start the metronome."""
@@ -617,9 +700,9 @@ class PracticeMetronome:
     def stop(self):
         """Stop the metronome."""
         self.is_running = False
-        if self.after_id:
-            # This would need to be handled by the GUI
-            pass
+        if self.after_id and self.window:
+            self.window.after_cancel(self.after_id)
+            self.after_id = None
     
     def _tick(self):
         """Internal tick method."""
@@ -627,15 +710,21 @@ class PracticeMetronome:
             return
         
         self.current_beat = (self.current_beat + 1) % self.beat_count
+        is_downbeat = self.current_beat == 0
         
+        # Play sound
+        self._play_click(is_downbeat)
+        
+        # Update visual callback
         if self.click_callback:
-            self.click_callback(self.current_beat, self.current_beat == 0)
+            self.click_callback(self.current_beat, is_downbeat)
         
         # Calculate interval in milliseconds
         interval = int(60000 / self.bpm)
         
-        # This would need to be scheduled by the GUI
-        # self.after_id = root.after(interval, self._tick)
+        # Schedule next tick
+        if self.window and self.is_running:
+            self.after_id = self.window.after(interval, self._tick)
 
 
 class SongUtilitiesWindow:
@@ -657,7 +746,7 @@ class SongUtilitiesWindow:
         self.window.resizable(True, True)
         
         # Initialize metronome
-        self.metronome = PracticeMetronome()
+        self.metronome = PracticeMetronome(window=self.window)
         
         self.setup_ui()
         self.center_window()
