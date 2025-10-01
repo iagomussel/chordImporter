@@ -18,7 +18,7 @@ try:
     from .settings_window import show_settings_window
     from .chord_identifier import show_chord_identifier
     from .music_visualizer import show_music_visualizer
-    from .melody_analyzer import show_melody_analyzer, show_advanced_melody_analyzer, show_karaoke_analyzer
+    from .voice_pitch_tuner import show_voice_pitch_tuner
     from ..services.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
     from ..utils import UIHelpers, ErrorHandler
 except ImportError:
@@ -29,7 +29,7 @@ except ImportError:
     from chord_importer.ui.settings_window import show_settings_window
     from chord_importer.ui.chord_identifier import show_chord_identifier
     from chord_importer.ui.music_visualizer import show_music_visualizer
-    from chord_importer.ui.melody_analyzer import show_melody_analyzer, show_advanced_melody_analyzer, show_karaoke_analyzer
+    from chord_importer.ui.voice_pitch_tuner import show_voice_pitch_tuner
     from chord_importer.services.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
     from chord_importer.utils import UIHelpers, ErrorHandler
 
@@ -739,22 +739,10 @@ class MusicalToolsDashboard(tk.Tk):
                 "command": self.open_source_config
             },
             {
-                "title": "Melody Analyzer",
-                "description": "Analyze melodies from audio files and compare with real-time singing",
-                "icon": "🎼",
-                "command": self.open_melody_analyzer
-            },
-            {
-                "title": "Advanced Melody Analyzer",
-                "description": "AI-powered vocal separation and precise melody extraction with piano roll",
-                "icon": "🎹",
-                "command": self.open_advanced_melody_analyzer
-            },
-            {
-                "title": "Karaoke Analyzer",
-                "description": "Complete karaoke system with Spleeter vocal isolation and real-time pitch tracking",
+                "title": "Voice Pitch Tuner",
+                "description": "Real-time voice pitch detection and tuning assistance for vocal training",
                 "icon": "🎤",
-                "command": self.open_karaoke_analyzer
+                "command": self.open_voice_pitch_tuner
             }
         ]
         
@@ -1116,29 +1104,13 @@ class MusicalToolsDashboard(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", f"Error opening Source Configuration: {str(e)}")
     
-    def open_melody_analyzer(self):
-        """Open the Melody Analyzer window."""
+    def open_voice_pitch_tuner(self):
+        """Open the Voice Pitch Tuner window."""
         try:
-            show_melody_analyzer(self)
-            self.status_bar.set_status("Melody Analyzer opened")
+            show_voice_pitch_tuner(self)
+            self.status_bar.set_status("Voice Pitch Tuner opened")
         except Exception as e:
-            messagebox.showerror("Error", f"Error opening Melody Analyzer: {str(e)}")
-    
-    def open_advanced_melody_analyzer(self):
-        """Open the Advanced Melody Analyzer window."""
-        try:
-            show_advanced_melody_analyzer(self)
-            self.status_bar.set_status("Advanced Melody Analyzer opened")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error opening Advanced Melody Analyzer: {str(e)}")
-    
-    def open_karaoke_analyzer(self):
-        """Open the Karaoke Analyzer window."""
-        try:
-            show_karaoke_analyzer(self)
-            self.status_bar.set_status("Karaoke Analyzer opened")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error opening Karaoke Analyzer: {str(e)}")
+            messagebox.showerror("Error", f"Error opening Voice Pitch Tuner: {str(e)}")
     
     def focus_search_tab(self):
         """Focus on the search tab."""

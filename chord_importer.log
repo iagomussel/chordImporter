@@ -1,0 +1,2 @@
+2025-10-01 15:09:14,520 - ChordImporter - ERROR - Error in starting audio recording: Error opening InputStream: Invalid sample rate [PaErrorCode -9997]: Error opening InputStream: Invalid sample rate [PaErrorCode -9997]
+2025-10-01 15:09:23,041 - ChordImporter - ERROR - Error in starting audio recording: Error opening InputStream: Invalid device [PaErrorCode -9996]: Error opening InputStream: Invalid device [PaErrorCode -9996]

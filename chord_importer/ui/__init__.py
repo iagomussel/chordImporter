@@ -9,7 +9,7 @@ from .cipher_manager import CipherManagerWindow
 from .tuner import AdvancedGuitarTuner
 from .chord_identifier import ChordIdentifierWindow
 from .music_visualizer import SimpleMusicVisualizer
-# MelodyAnalyzer removed - replaced with VoicePitchTuner
+from .voice_pitch_tuner import VoicePitchTuner, show_voice_pitch_tuner
 
 __all__ = [
     'MusicalToolsDashboard',
@@ -19,5 +19,6 @@ __all__ = [
     'AdvancedGuitarTuner',
     'ChordIdentifierWindow',
     'SimpleMusicVisualizer',
-    # 'MelodyAnalyzer' removed
+    'VoicePitchTuner',
+    'show_voice_pitch_tuner'
 ]
