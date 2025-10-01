@@ -10,11 +10,13 @@ import os
 from datetime import datetime
 
 try:
-    from .database import get_database
-    from .settings import get_settings
+    from ..models.database import get_database
+    from ..models.settings import get_settings
+    from ..utils import UIHelpers, ErrorHandler
 except ImportError:
-    from chord_importer.database import get_database
-    from chord_importer.settings import get_settings
+    from chord_importer.models.database import get_database
+    from chord_importer.models.settings import get_settings
+    from chord_importer.utils import UIHelpers, ErrorHandler
 
 
 class CipherManagerWindow:

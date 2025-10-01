@@ -25,9 +25,9 @@ def _get_api_key() -> str:
     try:
         # Try relative imports first (for package usage)
         try:
-            from .settings import get_settings
+            from ..models.settings import get_settings
         except ImportError:
-            from chord_importer.settings import get_settings
+            from chord_importer.models.settings import get_settings
         
         settings = get_settings()
         api_key = settings.get_serper_api_key()
@@ -314,9 +314,9 @@ def search_chord_sequence(chord_sequence: str, country: str = "br", language: st
         Aggregated and deduplicated search results from all keys
     """
     try:
-        from .chord_transposer import generate_search_queries, describe_transposition, parse_chord_sequence, transpose_sequence
+        from ..utils.chord_transposer import generate_search_queries, describe_transposition, parse_chord_sequence, transpose_sequence
     except ImportError:
-        from chord_importer.chord_transposer import generate_search_queries, describe_transposition, parse_chord_sequence, transpose_sequence
+        from chord_importer.utils.chord_transposer import generate_search_queries, describe_transposition, parse_chord_sequence, transpose_sequence
     
     # Generate all search queries for different keys
     queries = generate_search_queries(chord_sequence)
@@ -339,9 +339,9 @@ def search_chord_sequence(chord_sequence: str, country: str = "br", language: st
                     
                     # Add key information to the title or snippet
                     try:
-                        from .chord_transposer import AccidentalPreference
+                        from ..utils.chord_transposer import AccidentalPreference
                     except ImportError:
-                        from chord_importer.chord_transposer import AccidentalPreference
+                        from chord_importer.utils.chord_transposer import AccidentalPreference
                     transposed_chords = transpose_sequence(original_chords, i, AccidentalPreference.PRESERVE_INPUT)
                     key_info = describe_transposition(chord_sequence, i, AccidentalPreference.PRESERVE_INPUT)
                     
@@ -374,7 +374,7 @@ def search_chord_sequence_dynamic(chord_sequence: str, callback=None, country: s
         Tuple of (key_index, key_name, results) for each key searched
     """
     try:
-        from .chord_transposer import (
+        from ..utils.chord_transposer import (
             generate_search_queries, 
             describe_transposition, 
             parse_chord_sequence, 
@@ -383,7 +383,7 @@ def search_chord_sequence_dynamic(chord_sequence: str, callback=None, country: s
             AccidentalPreference
         )
     except ImportError:
-        from chord_importer.chord_transposer import (
+        from chord_importer.utils.chord_transposer import (
             generate_search_queries, 
             describe_transposition, 
             parse_chord_sequence, 

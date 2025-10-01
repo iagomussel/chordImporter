@@ -7,11 +7,13 @@ from tkinter import ttk, filedialog, messagebox
 from typing import Dict, Any
 
 try:
-    from .settings import get_settings
-    from .database import get_database
+    from ..models.settings import get_settings
+    from ..models.database import get_database
+    from ..utils import UIHelpers, ErrorHandler
 except ImportError:
-    from chord_importer.settings import get_settings
-    from chord_importer.database import get_database
+    from chord_importer.models.settings import get_settings
+    from chord_importer.models.database import get_database
+    from chord_importer.utils import UIHelpers, ErrorHandler
 
 class SettingsWindow:
     """Settings configuration window."""

@@ -11,29 +11,27 @@ import os
 from datetime import datetime
 
 try:
-    from .database import get_database
-    from .settings import get_settings
+    from ..models.database import get_database
+    from ..models.settings import get_settings
     from .tuner import TunerWindow
     from .cipher_manager import show_cipher_manager
     from .settings_window import show_settings_window
     from .chord_identifier import show_chord_identifier
     from .music_visualizer import show_music_visualizer
-    from .melody_analyzer import show_melody_analyzer
-    from .advanced_melody_analyzer import show_advanced_melody_analyzer
-    from .karaoke_analyzer import show_karaoke_analyzer
-    from .serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
+    from .melody_analyzer import show_melody_analyzer, show_advanced_melody_analyzer, show_karaoke_analyzer
+    from ..services.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
+    from ..utils import UIHelpers, ErrorHandler
 except ImportError:
-    from chord_importer.database import get_database
-    from chord_importer.settings import get_settings
-    from chord_importer.tuner import TunerWindow
-    from chord_importer.cipher_manager import show_cipher_manager
-    from chord_importer.settings_window import show_settings_window
-    from chord_importer.chord_identifier import show_chord_identifier
-    from chord_importer.music_visualizer import show_music_visualizer
-    from chord_importer.melody_analyzer import show_melody_analyzer
-    from chord_importer.advanced_melody_analyzer import show_advanced_melody_analyzer
-    from chord_importer.karaoke_analyzer import show_karaoke_analyzer
-    from chord_importer.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
+    from chord_importer.models.database import get_database
+    from chord_importer.models.settings import get_settings
+    from chord_importer.ui.tuner import TunerWindow
+    from chord_importer.ui.cipher_manager import show_cipher_manager
+    from chord_importer.ui.settings_window import show_settings_window
+    from chord_importer.ui.chord_identifier import show_chord_identifier
+    from chord_importer.ui.music_visualizer import show_music_visualizer
+    from chord_importer.ui.melody_analyzer import show_melody_analyzer, show_advanced_melody_analyzer, show_karaoke_analyzer
+    from chord_importer.services.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
+    from chord_importer.utils import UIHelpers, ErrorHandler
 
 
 class ToolCard(tk.Frame):
@@ -382,9 +380,9 @@ class QuickSearchFrame(tk.Frame):
     def load_sources(self):
         """Load available sources for selection."""
         try:
-            from .source_configs import get_source_manager
+            from ..models.source_configs import get_source_manager
         except ImportError:
-            from chord_importer.source_configs import get_source_manager
+            from chord_importer.models.source_configs import get_source_manager
         
         try:
             source_manager = get_source_manager()
@@ -416,9 +414,9 @@ class QuickSearchFrame(tk.Frame):
             return
         
         try:
-            from .source_configs import get_source_manager
+            from ..models.source_configs import get_source_manager
         except ImportError:
-            from chord_importer.source_configs import get_source_manager
+            from chord_importer.models.source_configs import get_source_manager
         
         try:
             source_manager = get_source_manager()

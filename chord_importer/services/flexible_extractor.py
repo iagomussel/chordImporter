@@ -11,11 +11,11 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 try:
-    from .source_configs import get_source_manager, SourceConfig, SourceSelector
+    from ..models.source_configs import get_source_manager, SourceConfig, SourceSelector
     from .core import DEFAULT_HEADERS, _normalize_lyrics_text, _extract_text_from_pre
 except ImportError:
-    from chord_importer.source_configs import get_source_manager, SourceConfig, SourceSelector
-    from chord_importer.core import DEFAULT_HEADERS, _normalize_lyrics_text, _extract_text_from_pre
+    from chord_importer.models.source_configs import get_source_manager, SourceConfig, SourceSelector
+    from chord_importer.services.core import DEFAULT_HEADERS, _normalize_lyrics_text, _extract_text_from_pre
 
 
 class FlexibleExtractor:
