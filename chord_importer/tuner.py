@@ -1,189 +1,323 @@
 """
-Guitar Tuner module using Tkinter and audio processing.
+Advanced Guitar Tuner with HPS Algorithm, Audio Recording, and Auto-Tuning.
+Based on chciken.com implementation: https://www.chciken.com/digital/signal/processing/2020/05/13/guitar-tuner.html
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox, filedialog
 import threading
 import time
 import math
-from typing import Optional, Callable
+import copy
+import os
+from typing import Optional, List, Tuple
+import wave
 
-try:
-    import numpy as np
-    import pyaudio
-    AUDIO_AVAILABLE = True
-except ImportError:
-    AUDIO_AVAILABLE = False
-    # Create dummy modules to avoid attribute errors
-    class DummyNumpy:
-        def __getattr__(self, name):
-            return lambda *args, **kwargs: None
-        ndarray = type(None)
-    
-    class DummyPyAudio:
-        def __getattr__(self, name):
-            return lambda *args, **kwargs: None
-        paInt16 = None
-    
-    np = DummyNumpy()
-    pyaudio = DummyPyAudio()
+# Required audio libraries - NO FALLBACKS
+import numpy as np
+import pyaudio
+import scipy.io.wavfile
+import scipy.fftpack
 
+# Verify critical dependencies are available
+if not hasattr(np, 'zeros'):
+    raise ImportError("numpy not properly installed")
+if not hasattr(pyaudio, 'PyAudio'):
+    raise ImportError("pyaudio not properly installed")
 
-class GuitarTuner:
-    """Guitar tuner with frequency detection and visual feedback."""
-    
-    # Standard guitar tuning frequencies (Hz) - Exact values
-    GUITAR_NOTES = {
-        'E2': 82.0,    # 6ª corda (mais grave) - Mi
-        'A2': 110.0,   # 5ª corda - Lá
-        'D3': 146.0,   # 4ª corda - Ré
-        'G3': 196.0,   # 3ª corda - Sol
-        'B3': 247.0,   # 2ª corda - Si
-        'E4': 330.0,   # 1ª corda (mais aguda) - Mi
-    }
-    
-    # String names in order
-    STRING_NAMES = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
+class AdvancedGuitarTuner:
+    """
+    Advanced Guitar Tuner implementing HPS (Harmonic Product Spectrum) algorithm
+    from chciken.com with audio recording and auto-tuning capabilities.
+    """
     
     def __init__(self, parent: tk.Widget):
+        """Initialize the advanced guitar tuner."""
         self.parent = parent
         self.is_listening = False
-        self.audio_stream: Optional[object] = None
-        self.audio_thread: Optional[threading.Thread] = None
+        self.is_recording = False
         self.current_frequency = 0.0
         self.target_note = 'E2'
         self.auto_detect = True
         self.detected_note = None
         
-        # Audio settings - Based on TomSchimansky GuitarTuner
-        self.sample_rate = 44100
-        self.chunk_size = 4096  # Optimal for real-time processing
-        self.audio_format = pyaudio.paInt16 if AUDIO_AVAILABLE else None
-        self.selected_mic_index = None
+        # Make numpy available as instance attribute
+        self.np = np
         
-        # Advanced audio processing (HPS algorithm)
-        self.buffer_duration = 1.5  # 1.5 seconds buffer like reference
-        self.buffer_size = int(self.sample_rate * self.buffer_duration)
-        self.audio_buffer = np.zeros(self.buffer_size, dtype=np.float32)
-        self.buffer_index = 0
+        # HPS Algorithm Parameters (from chciken.com)
+        self.SAMPLE_FREQ = 44100  # Sampling frequency
+        self.WINDOW_SIZE = 4096   # Window size for FFT
+        self.WINDOW_STEP = 1024   # Step size for sliding window
+        self.NUM_HPS = 5          # Number of harmonics for HPS
+        self.POWER_THRESH = 1e-6  # Power threshold for signal detection
+        self.WHITE_NOISE_THRESH = 0.2  # White noise threshold
         
-        # HPS (Harmonic Product Spectrum) settings
-        self.hps_harmonics = 5  # Number of harmonics to multiply
-        self.min_frequency = 60.0   # C2 - minimum detectable frequency
-        self.max_frequency = 2000.0 # C7 - maximum detectable frequency
+        # Concert pitch and note definitions (from chciken.com)
+        self.CONCERT_PITCH = 440  # A4 = 440 Hz
+        self.ALL_NOTES = ["A","A#","B","C","C#","D","D#","E","F","F#","G","G#"]
         
-        # Precision and stability
-        self.frequency_history = []
-        self.history_size = 10
-        self.stability_threshold = 2.0  # Hz tolerance for stability
-        self.noise_floor = 0.001  # Lower noise floor for better sensitivity
+        # Standard guitar tuning frequencies (exact values from chciken.com)
+        self.GUITAR_NOTES = {
+            'E2': 82.41,   # 6ª corda (mais grave) - Mi
+            'A2': 110.00,  # 5ª corda - Lá  
+            'D3': 146.83,  # 4ª corda - Ré
+            'G3': 196.00,  # 3ª corda - Sol
+            'B3': 246.94,  # 2ª corda - Si
+            'E4': 329.63,  # 1ª corda (mais aguda) - Mi
+        }
+        
+        # String names in order
+        self.STRING_NAMES = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
+        
+        # Octave bands for noise reduction (from chciken.com)
+        self.OCTAVE_BANDS = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600]
+        
+        # Audio processing variables
+        self.audio_stream = None
+        self.audio_data = None
+        self.window_samples = None
+        self.note_buffer = []
+        self.recording_data = []
+        
+        # Auto-tuning variables
+        self.auto_tune_enabled = False
+        self.target_pitch_correction = 0.0
         
         # Get available microphones
         self.available_mics = self.get_available_microphones()
         
         self.setup_ui()
     
-    def get_available_microphones(self) -> list:
+    def get_available_microphones(self) -> List[dict]:
         """Get list of available microphones."""
-        if not AUDIO_AVAILABLE:
-            return [{"index": 0, "name": "Microfone padrão (áudio não disponível)"}]
+        audio = pyaudio.PyAudio()
+        mics = []
+        
+        for i in range(audio.get_device_count()):
+            device_info = audio.get_device_info_by_index(i)
+            # Only include input devices
+            if device_info['maxInputChannels'] > 0:
+                mics.append({
+                    "index": i,
+                    "name": device_info['name'],
+                    "channels": device_info['maxInputChannels'],
+                    "sample_rate": int(device_info['defaultSampleRate'])
+                })
+        
+        audio.terminate()
+        
+        if not mics:
+            raise RuntimeError("No microphones found")
+            
+        return mics
+    
+    def find_closest_note(self, pitch: float) -> Tuple[str, float]:
+        """
+        Find closest note using chciken.com algorithm.
+        
+        Args:
+            pitch: Frequency in Hz
+            
+        Returns:
+            Tuple of (note_name, closest_pitch)
+        """
+        if pitch <= 0:
+            return None, 0
+            
+        # Calculate semitone index from A4 (chciken.com formula)
+        i = int(np.round(np.log2(pitch / self.CONCERT_PITCH) * 12))
+        
+        # Get note name
+        closest_note = self.ALL_NOTES[i % 12] + str(4 + (i + 9) // 12)
+        
+        # Calculate exact pitch of closest note
+        closest_pitch = self.CONCERT_PITCH * (2 ** (i / 12))
+        
+        return closest_note, closest_pitch
+    
+    def hps_pitch_detection(self, audio_data: np.array) -> float:
+        """
+        HPS (Harmonic Product Spectrum) pitch detection algorithm.
+        Implementation based on chciken.com article.
+        
+        Args:
+            audio_data: Audio samples as numpy array
+            
+        Returns:
+            Detected frequency in Hz
+        """
+        if len(audio_data) < self.WINDOW_SIZE:
+            return 0.0
+        
+        # Calculate signal power (chciken.com implementation)
+        signal_power = (np.linalg.norm(audio_data, ord=2)**2) / len(audio_data)
+        if signal_power < self.POWER_THRESH:
+            return 0.0
+        
+        # Apply Hann window to reduce spectral leakage (chciken.com)
+        hann_window = np.hanning(len(audio_data))
+        hann_samples = audio_data * hann_window
+        
+        # Compute magnitude spectrum using FFT
+        magnitude_spec = np.abs(scipy.fftpack.fft(hann_samples)[:len(hann_samples)//2])
+        
+        # Frequency resolution
+        delta_freq = self.SAMPLE_FREQ / len(audio_data)
+        
+        # Suppress mains hum - set everything below 62 Hz to zero (chciken.com)
+        for i in range(int(62 / delta_freq)):
+            if i < len(magnitude_spec):
+                magnitude_spec[i] = 0
+        
+        # Noise reduction using octave bands (chciken.com implementation)
+        for j in range(len(self.OCTAVE_BANDS) - 1):
+            ind_start = int(self.OCTAVE_BANDS[j] / delta_freq)
+            ind_end = int(self.OCTAVE_BANDS[j + 1] / delta_freq)
+            ind_end = min(ind_end, len(magnitude_spec))
+            
+            if ind_start < ind_end:
+                # Calculate average energy per frequency
+                band_energy = magnitude_spec[ind_start:ind_end]
+                if len(band_energy) > 0:
+                    avg_energy_per_freq = (np.linalg.norm(band_energy, ord=2)**2) / len(band_energy)
+                    avg_energy_per_freq = avg_energy_per_freq**0.5
+                    
+                    # Suppress frequencies below threshold
+                    for i in range(ind_start, ind_end):
+                        if magnitude_spec[i] <= self.WHITE_NOISE_THRESH * avg_energy_per_freq:
+                            magnitude_spec[i] = 0
+        
+        # Interpolate spectrum for HPS (chciken.com)
+        mag_spec_ipol = np.interp(
+            np.arange(0, len(magnitude_spec), 1/self.NUM_HPS),
+            np.arange(0, len(magnitude_spec)),
+            magnitude_spec
+        )
+        
+        # Normalize interpolated spectrum
+        if np.linalg.norm(mag_spec_ipol, ord=2) > 0:
+            mag_spec_ipol = mag_spec_ipol / np.linalg.norm(mag_spec_ipol, ord=2)
+        
+        # Calculate HPS (chciken.com implementation)
+        hps_spec = copy.deepcopy(mag_spec_ipol)
+        
+        for i in range(self.NUM_HPS):
+            # Calculate downsampled spectrum length
+            downsample_length = int(np.ceil(len(mag_spec_ipol) / (i + 1)))
+            if downsample_length <= 0:
+                break
+                
+            # Multiply with downsampled spectrum
+            downsampled = mag_spec_ipol[::i+1][:downsample_length]
+            
+            if len(downsampled) > 0 and len(hps_spec) >= len(downsampled):
+                tmp_hps_spec = np.multiply(hps_spec[:len(downsampled)], downsampled)
+                if np.any(tmp_hps_spec):
+                    hps_spec = tmp_hps_spec
+                else:
+                    break
+        
+        # Find peak frequency
+        if len(hps_spec) == 0 or not np.any(hps_spec):
+            return 0.0
+            
+        max_ind = np.argmax(hps_spec)
+        max_freq = max_ind * (self.SAMPLE_FREQ / len(audio_data)) / self.NUM_HPS
+        
+        return max_freq
+    
+    def audio_callback(self, in_data, frame_count, time_info, status):
+        """Audio callback function for real-time processing."""
+        if status:
+            print(f"Audio callback status: {status}")
         
         try:
-            audio = pyaudio.PyAudio()
-            mics = []
+            # Convert audio data to numpy array
+            audio_data = np.frombuffer(in_data, dtype=np.float32)
             
-            for i in range(audio.get_device_count()):
-                device_info = audio.get_device_info_by_index(i)
-                # Only include input devices
-                if device_info['maxInputChannels'] > 0:
-                    mics.append({
-                        "index": i,
-                        "name": device_info['name'],
-                        "channels": device_info['maxInputChannels'],
-                        "sample_rate": int(device_info['defaultSampleRate'])
-                    })
+            # Initialize window samples if needed
+            if self.window_samples is None:
+                self.window_samples = np.zeros(self.WINDOW_SIZE)
             
-            audio.terminate()
-            
-            if not mics:
-                mics = [{"index": 0, "name": "Nenhum microfone encontrado"}]
+            # Update sliding window
+            if len(audio_data) > 0:
+                # Append new samples and remove old ones
+                self.window_samples = np.concatenate((self.window_samples, audio_data))
+                self.window_samples = self.window_samples[len(audio_data):]
                 
-            return mics
-            
+                # Detect pitch using HPS
+                detected_freq = self.hps_pitch_detection(self.window_samples)
+                
+                if detected_freq > 0:
+                    self.current_frequency = detected_freq
+                    
+                    # Find closest note
+                    closest_note, closest_pitch = self.find_closest_note(detected_freq)
+                    
+                    # Update note buffer for stability (chciken.com majority vote)
+                    if len(self.note_buffer) >= 2:
+                        self.note_buffer.pop()
+                    self.note_buffer.insert(0, closest_note)
+                    
+                    # Update UI in main thread
+                    self.parent.after(0, self.update_ui_callback)
+                
+                # Record audio if recording is enabled
+                if self.is_recording and len(audio_data) > 0:
+                    self.recording_data.extend(audio_data)
+        
         except Exception as e:
-            return [{"index": 0, "name": f"Erro ao detectar microfones: {str(e)}"}]
+            print(f"Audio callback error: {e}")
+        
+        return (None, pyaudio.paContinue)
     
-    def find_closest_note(self, frequency: float) -> Optional[str]:
-        """Find the closest guitar note to the given frequency using advanced detection."""
-        if frequency < self.min_frequency or frequency > self.max_frequency:
-            return None
-            
-        # Use the advanced frequency to note conversion
-        detected_note, cents_deviation = self.frequency_to_note(frequency)
-        
-        if detected_note is None:
-            return None
-        
-        # Check if it's close to a guitar note (within reasonable range)
-        if abs(cents_deviation) > 50:  # More than 50 cents off
-            return None
-            
-        # Map detected note to guitar strings if it matches
-        for guitar_note, target_freq in self.GUITAR_NOTES.items():
-            note_freq_diff = abs(frequency - target_freq)
-            if note_freq_diff < 10:  # Within 10 Hz of a guitar string
-                return guitar_note
-        
-        # If not a standard guitar note but still a valid musical note, return it
-        # This allows detection of fretted notes
-        return detected_note
-        
+    def update_ui_callback(self):
+        """Update UI from main thread."""
+        if hasattr(self, 'update_ui'):
+            self.update_ui()
+    
     def setup_ui(self):
-        """Setup the tuner user interface."""
+        """Setup the advanced tuner user interface."""
         # Main frame
         self.frame = tk.Frame(self.parent)
-        self.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Title
-        title_label = tk.Label(self.frame, text="🎸 Afinador de Guitarra", 
+        title_label = tk.Label(self.frame, text="🎸 Afinador Avançado com HPS", 
                               font=("Arial", 16, "bold"))
         title_label.pack(pady=(0, 20))
         
         # Microphone selection
         mic_frame = tk.Frame(self.frame)
-        mic_frame.pack(pady=10)
+        mic_frame.pack(fill=tk.X, pady=5)
         
-        tk.Label(mic_frame, text="Microfone:", font=("Arial", 12)).pack(side=tk.LEFT)
+        tk.Label(mic_frame, text="Microfone:", font=("Arial", 10)).pack(side=tk.LEFT)
         
-        mic_names = [mic["name"] for mic in self.available_mics]
-        self.mic_var = tk.StringVar(value=mic_names[0] if mic_names else "Nenhum")
-        self.mic_combo = ttk.Combobox(mic_frame, textvariable=self.mic_var,
-                                     values=mic_names, state="readonly", width=30)
-        self.mic_combo.pack(side=tk.LEFT, padx=(5, 0))
-        self.mic_combo.bind("<<ComboboxSelected>>", self.on_mic_changed)
+        self.mic_var = tk.StringVar()
+        mic_names = [mic['name'] for mic in self.available_mics]
+        self.mic_combo = ttk.Combobox(mic_frame, textvariable=self.mic_var, 
+                                     values=mic_names, state="readonly")
+        self.mic_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
+        if mic_names:
+            self.mic_combo.current(0)
+        self.mic_combo.bind('<<ComboboxSelected>>', self.on_mic_changed)
         
-        # Auto-detect mode
-        auto_frame = tk.Frame(self.frame)
-        auto_frame.pack(pady=10)
+        # Auto-detect and string selection
+        controls_frame = tk.Frame(self.frame)
+        controls_frame.pack(fill=tk.X, pady=10)
         
-        self.auto_var = tk.BooleanVar(value=self.auto_detect)
-        self.auto_check = tk.Checkbutton(auto_frame, text="Detectar corda automaticamente",
-                                        variable=self.auto_var, command=self.on_auto_changed,
-                                        font=("Arial", 12))
-        self.auto_check.pack()
+        self.auto_var = tk.BooleanVar(value=True)
+        self.auto_checkbox = tk.Checkbutton(controls_frame, text="Detectar corda automaticamente", 
+                                           variable=self.auto_var, command=self.on_auto_changed)
+        self.auto_checkbox.pack(side=tk.LEFT)
         
-        # String selection (manual mode)
-        string_frame = tk.Frame(self.frame)
-        string_frame.pack(pady=10)
-        
-        tk.Label(string_frame, text="Corda:", font=("Arial", 12)).pack(side=tk.LEFT)
+        tk.Label(controls_frame, text="Corda:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(20, 5))
         
         self.string_var = tk.StringVar(value=self.target_note)
-        self.string_combo = ttk.Combobox(string_frame, textvariable=self.string_var,
-                                        values=self.STRING_NAMES, state="readonly", width=10)
-        self.string_combo.pack(side=tk.LEFT, padx=(5, 0))
-        self.string_combo.bind("<<ComboboxSelected>>", self.on_string_changed)
+        self.string_combo = ttk.Combobox(controls_frame, textvariable=self.string_var,
+                                        values=self.STRING_NAMES, state="readonly", width=8)
+        self.string_combo.pack(side=tk.LEFT)
+        self.string_combo.bind('<<ComboboxSelected>>', self.on_string_changed)
         
         # Initially disable string selection if auto mode is on
         if self.auto_detect:
@@ -191,7 +325,7 @@ class GuitarTuner:
         
         # Target frequency display
         self.target_freq_label = tk.Label(self.frame, 
-                                         text=f"Frequência alvo: {self.GUITAR_NOTES[self.target_note]:.0f} Hz",
+                                         text=f"Frequência alvo: {self.GUITAR_NOTES[self.target_note]:.2f} Hz",
                                          font=("Arial", 12))
         self.target_freq_label.pack(pady=5)
         
@@ -210,64 +344,114 @@ class GuitarTuner:
                                    font=("Arial", 12))
         self.cents_label.pack(pady=5)
         
-        # String information display
-        self.string_info_label = tk.Label(self.frame, 
-                                         text="Range: 60-2000 Hz | Precisão: < 0.5 cents | HPS Algorithm",
-                                         font=("Arial", 9), fg='gray')
-        self.string_info_label.pack(pady=5)
+        # Algorithm info
+        self.algorithm_info_label = tk.Label(self.frame, 
+                                           text="Algoritmo HPS (Harmonic Product Spectrum) - chciken.com",
+                                           font=("Arial", 9), fg='gray')
+        self.algorithm_info_label.pack(pady=5)
         
-        # Tuning indicator
+        # Tuning indicator (visual meter)
         indicator_frame = tk.Frame(self.frame)
         indicator_frame.pack(pady=20)
         
-        # Visual tuning meter
         self.canvas = tk.Canvas(indicator_frame, width=400, height=100, bg='white')
         self.canvas.pack()
         
-        # Status labels
-        self.status_label = tk.Label(self.frame, text="Clique 'Iniciar' para começar",
-                                    font=("Arial", 12))
-        self.status_label.pack(pady=10)
+        # Draw tuning meter
+        self.draw_tuning_meter()
         
-        self.tuning_label = tk.Label(self.frame, text="", font=("Arial", 14, "bold"))
-        self.tuning_label.pack(pady=5)
+        # Status and tuning label
+        self.tuning_label = tk.Label(self.frame, text="🎵 Toque uma corda", 
+                                    font=("Arial", 14, "bold"), fg='blue')
+        self.tuning_label.pack(pady=10)
         
         # Control buttons
         button_frame = tk.Frame(self.frame)
-        button_frame.pack(pady=20)
+        button_frame.pack(fill=tk.X, pady=20)
         
-        self.start_button = tk.Button(button_frame, text="Iniciar", 
-                                     command=self.start_listening,
-                                     bg='green', fg='white', font=("Arial", 12))
+        self.start_button = tk.Button(button_frame, text="▶️ Iniciar", 
+                                     command=self.start_listening, font=("Arial", 12))
         self.start_button.pack(side=tk.LEFT, padx=5)
         
-        self.stop_button = tk.Button(button_frame, text="Parar", 
-                                    command=self.stop_listening,
-                                    bg='red', fg='white', font=("Arial", 12),
-                                    state=tk.DISABLED)
+        self.stop_button = tk.Button(button_frame, text="⏹️ Parar", 
+                                    command=self.stop_listening, font=("Arial", 12))
         self.stop_button.pack(side=tk.LEFT, padx=5)
         
-        # Audio availability warning
-        if not AUDIO_AVAILABLE:
-            warning_label = tk.Label(self.frame, 
-                                   text="⚠️ Instale 'numpy' e 'pyaudio' para usar o afinador",
-                                   fg='red', font=("Arial", 10))
-            warning_label.pack(pady=10)
-            self.start_button.config(state=tk.DISABLED)
+        # Recording controls
+        self.record_button = tk.Button(button_frame, text="🔴 Gravar", 
+                                      command=self.start_recording, font=("Arial", 12))
+        self.record_button.pack(side=tk.LEFT, padx=5)
         
-        # Initialize visual meter
-        self.draw_tuning_meter(0)
+        self.stop_record_button = tk.Button(button_frame, text="⏹️ Parar Gravação", 
+                                           command=self.stop_recording, font=("Arial", 12))
+        self.stop_record_button.pack(side=tk.LEFT, padx=5)
         
+        # Auto-tuning controls
+        self.autotune_var = tk.BooleanVar()
+        self.autotune_checkbox = tk.Checkbutton(button_frame, text="Auto-Tuning", 
+                                               variable=self.autotune_var, 
+                                               command=self.toggle_autotune)
+        self.autotune_checkbox.pack(side=tk.LEFT, padx=20)
+        
+        # Status label
+        self.status_label = tk.Label(self.frame, text="Pronto para usar", 
+                                    font=("Arial", 10), fg='green')
+        self.status_label.pack(pady=10)
+    
+    def draw_tuning_meter(self):
+        """Draw the visual tuning meter."""
+        self.canvas.delete("all")
+        
+        # Draw meter background
+        self.canvas.create_rectangle(50, 30, 350, 70, fill='lightgray', outline='black')
+        
+        # Draw center line (perfect tuning)
+        center_x = 200
+        self.canvas.create_line(center_x, 20, center_x, 80, fill='black', width=2)
+        
+        # Draw scale marks
+        for i in range(-4, 5):
+            x = center_x + i * 30
+            self.canvas.create_line(x, 65, x, 75, fill='black')
+            if i != 0:
+                self.canvas.create_text(x, 85, text=f"{i*25}", font=("Arial", 8))
+        
+        # Labels
+        self.canvas.create_text(25, 50, text="GRAVE", font=("Arial", 8), angle=90)
+        self.canvas.create_text(375, 50, text="AGUDO", font=("Arial", 8), angle=90)
+        self.canvas.create_text(200, 10, text="AFINADO", font=("Arial", 10, "bold"))
+    
+    def update_tuning_meter(self, cents_deviation: float):
+        """Update the visual tuning meter."""
+        # Clear previous needle
+        self.canvas.delete("needle")
+        
+        # Calculate needle position
+        center_x = 200
+        max_deviation = 100  # cents
+        needle_x = center_x + (cents_deviation / max_deviation) * 120
+        needle_x = max(60, min(340, needle_x))  # Clamp to meter bounds
+        
+        # Choose color based on deviation
+        if abs(cents_deviation) < 5:
+            color = 'green'
+        elif abs(cents_deviation) < 20:
+            color = 'orange'
+        else:
+            color = 'red'
+        
+        # Draw needle
+        self.canvas.create_line(needle_x, 30, needle_x, 70, fill=color, width=4, tags="needle")
+        self.canvas.create_oval(needle_x-5, 45, needle_x+5, 55, fill=color, tags="needle")
+    
     def on_mic_changed(self, event=None):
         """Handle microphone selection change."""
-        selected_name = self.mic_var.get()
-        for mic in self.available_mics:
-            if mic["name"] == selected_name:
-                self.selected_mic_index = mic["index"]
-                break
+        if self.is_listening:
+            self.stop_listening()
+            self.parent.after(100, self.start_listening)  # Restart with new mic
     
     def on_auto_changed(self):
-        """Handle auto-detect mode change."""
+        """Handle auto-detect checkbox change."""
         self.auto_detect = self.auto_var.get()
         if self.auto_detect:
             self.string_combo.config(state=tk.DISABLED)
@@ -281,411 +465,269 @@ class GuitarTuner:
         if not self.auto_detect:
             self.target_note = self.string_var.get()
             target_freq = self.GUITAR_NOTES[self.target_note]
-            self.target_freq_label.config(text=f"Frequência alvo: {target_freq:.0f} Hz")
-        
+            self.target_freq_label.config(text=f"Frequência alvo: {target_freq:.2f} Hz")
+    
     def start_listening(self):
         """Start audio input and frequency detection."""
-        if not AUDIO_AVAILABLE:
-            self.status_label.config(text="Erro: Bibliotecas de áudio não disponíveis", fg='red')
+        if self.is_listening:
             return
-            
+        
         try:
-            # Initialize PyAudio
-            self.audio = pyaudio.PyAudio()
+            # Get selected microphone
+            selected_mic_name = self.mic_var.get()
+            selected_mic_index = 0
             
-            # Use selected microphone or default
-            input_device_index = self.selected_mic_index if self.selected_mic_index is not None else None
+            for mic in self.available_mics:
+                if mic['name'] == selected_mic_name:
+                    selected_mic_index = mic['index']
+                    break
             
-            # Open audio stream
-            self.audio_stream = self.audio.open(
-                format=self.audio_format,
+            # Initialize audio stream
+            audio = pyaudio.PyAudio()
+            
+            self.audio_stream = audio.open(
+                format=pyaudio.paFloat32,  # Changed from paFloat64 to paFloat32 for compatibility
                 channels=1,
-                rate=self.sample_rate,
+                rate=self.SAMPLE_FREQ,
                 input=True,
-                input_device_index=input_device_index,
-                frames_per_buffer=self.chunk_size
+                input_device_index=selected_mic_index,
+                frames_per_buffer=self.WINDOW_STEP,
+                stream_callback=self.audio_callback
             )
             
+            # Initialize processing variables
+            self.window_samples = np.zeros(self.WINDOW_SIZE)
+            self.note_buffer = []
+            
+            self.audio_stream.start_stream()
             self.is_listening = True
+            
+            self.status_label.config(text="Ouvindo... Toque uma corda!", fg='green')
             self.start_button.config(state=tk.DISABLED)
             self.stop_button.config(state=tk.NORMAL)
-            self.status_label.config(text="Ouvindo... Toque uma corda!", fg='green')
-            
-            # Start audio processing thread
-            self.audio_thread = threading.Thread(target=self.audio_processing_loop, daemon=True)
-            self.audio_thread.start()
             
         except Exception as e:
             self.status_label.config(text=f"Erro ao iniciar áudio: {str(e)}", fg='red')
-            
+            messagebox.showerror("Erro", f"Erro ao iniciar captura de áudio:\n{str(e)}")
+    
     def stop_listening(self):
         """Stop audio input and frequency detection."""
-        self.is_listening = False
+        if not self.is_listening:
+            return
         
-        if self.audio_stream:
-            self.audio_stream.stop_stream()
-            self.audio_stream.close()
-            self.audio_stream = None
+        try:
+            self.is_listening = False
             
-        if hasattr(self, 'audio'):
-            self.audio.terminate()
+            if self.audio_stream:
+                self.audio_stream.stop_stream()
+                self.audio_stream.close()
+                self.audio_stream = None
             
-        self.start_button.config(state=tk.NORMAL)
-        self.stop_button.config(state=tk.DISABLED)
-        self.status_label.config(text="Parado", fg='black')
-        self.current_freq_label.config(text="Frequência atual: -- Hz")
-        self.tuning_label.config(text="")
-        self.draw_tuning_meter(0)
+            self.status_label.config(text="Parado", fg='orange')
+            self.start_button.config(state=tk.NORMAL)
+            self.stop_button.config(state=tk.DISABLED)
+            
+            # Clear displays
+            self.current_freq_label.config(text="Frequência atual: -- Hz")
+            self.detected_note_label.config(text="Nota detectada: --")
+            self.cents_label.config(text="Desvio: -- cents")
+            self.tuning_label.config(text="🎵 Parado", fg='gray')
+            
+            # Clear meter
+            self.canvas.delete("needle")
+            
+        except Exception as e:
+            self.status_label.config(text=f"Erro ao parar: {str(e)}", fg='red')
+    
+    def start_recording(self):
+        """Start audio recording."""
+        if not self.is_listening:
+            messagebox.showwarning("Aviso", "Inicie o afinador antes de gravar!")
+            return
         
-    def audio_processing_loop(self):
-        """Main audio processing loop running in separate thread."""
-        while self.is_listening and self.audio_stream:
+        self.is_recording = True
+        self.recording_data = []
+        
+        self.record_button.config(state=tk.DISABLED)
+        self.stop_record_button.config(state=tk.NORMAL)
+        self.status_label.config(text="Gravando áudio...", fg='red')
+    
+    def stop_recording(self):
+        """Stop audio recording and save to file."""
+        if not self.is_recording:
+            return
+        
+        self.is_recording = False
+        
+        if len(self.recording_data) == 0:
+            messagebox.showwarning("Aviso", "Nenhum áudio foi gravado!")
+            return
+        
+        # Ask user where to save
+        filename = filedialog.asksaveasfilename(
+            title="Salvar gravação",
+            defaultextension=".wav",
+            filetypes=[("WAV files", "*.wav"), ("All files", "*.*")]
+        )
+        
+        if filename:
             try:
-                # Read audio data
-                data = self.audio_stream.read(self.chunk_size, exception_on_overflow=False)
+                # Convert to numpy array and save
+                audio_array = np.array(self.recording_data, dtype=np.float32)
                 
-                # Convert to numpy array
-                audio_data = np.frombuffer(data, dtype=np.int16)
+                # Normalize to 16-bit range
+                audio_normalized = np.int16(audio_array * 32767)
                 
-                # Detect frequency
-                frequency = self.detect_frequency(audio_data)
+                # Save using scipy
+                scipy.io.wavfile.write(filename, self.SAMPLE_FREQ, audio_normalized)
                 
-                if frequency > 0:
-                    self.current_frequency = frequency
-                    # Update UI in main thread
-                    self.parent.after(0, self.update_ui)
-                    
+                messagebox.showinfo("Sucesso", f"Áudio salvo em:\n{filename}")
+                self.status_label.config(text=f"Gravação salva: {os.path.basename(filename)}", fg='green')
+                
             except Exception as e:
-                print(f"Audio processing error: {e}")
-                break
-                
-        # Clean up when loop ends
-        if self.is_listening:
-            self.parent.after(0, self.stop_listening)
-            
-    def detect_frequency(self, audio_data: np.ndarray) -> float:
-        """Advanced frequency detection using HPS algorithm (based on TomSchimansky GuitarTuner)."""
-        if len(audio_data) == 0:
-            return 0.0
+                messagebox.showerror("Erro", f"Erro ao salvar áudio:\n{str(e)}")
+                self.status_label.config(text="Erro ao salvar gravação", fg='red')
         
-        # Convert to float and normalize
-        audio_float = audio_data.astype(np.float32) / 32768.0
+        self.record_button.config(state=tk.NORMAL)
+        self.stop_record_button.config(state=tk.DISABLED)
+    
+    def toggle_autotune(self):
+        """Toggle auto-tuning functionality."""
+        self.auto_tune_enabled = self.autotune_var.get()
         
-        # Add to circular buffer (1.5 seconds like reference)
-        chunk_size = len(audio_float)
-        if self.buffer_index + chunk_size <= self.buffer_size:
-            self.audio_buffer[self.buffer_index:self.buffer_index + chunk_size] = audio_float
-            self.buffer_index += chunk_size
+        if self.auto_tune_enabled:
+            self.status_label.config(text="Auto-tuning ativado", fg='blue')
         else:
-            # Wrap around
-            remaining = self.buffer_size - self.buffer_index
-            self.audio_buffer[self.buffer_index:] = audio_float[:remaining]
-            self.audio_buffer[:chunk_size - remaining] = audio_float[remaining:]
-            self.buffer_index = chunk_size - remaining
+            self.status_label.config(text="Auto-tuning desativado", fg='gray')
+    
+    def apply_autotune(self, frequency: float, target_frequency: float) -> float:
+        """
+        Apply auto-tuning correction to frequency.
+        Simple pitch correction algorithm.
+        """
+        if not self.auto_tune_enabled:
+            return frequency
         
-        # Check signal level
-        rms = np.sqrt(np.mean(self.audio_buffer**2))
-        if rms < self.noise_floor:
-            return 0.0
-        
-        # Apply HPS (Harmonic Product Spectrum) algorithm
-        frequency = self.hps_pitch_detection(self.audio_buffer)
-        
-        # Add to frequency history for stability
-        if frequency > 0:
-            self.frequency_history.append(frequency)
-            if len(self.frequency_history) > self.history_size:
-                self.frequency_history.pop(0)
+        # Calculate cents deviation
+        if target_frequency > 0 and frequency > 0:
+            cents_deviation = 1200 * np.log2(frequency / target_frequency)
             
-            # Calculate stable frequency (median of recent detections)
-            if len(self.frequency_history) >= 3:
-                stable_freq = np.median(self.frequency_history)
-                
-                # Check if frequency is stable enough
-                recent_freqs = self.frequency_history[-5:]
-                if len(recent_freqs) >= 3:
-                    freq_std = np.std(recent_freqs)
-                    if freq_std < self.stability_threshold:
-                        return stable_freq
-                
-                return stable_freq
+            # Apply correction (simple snap-to-pitch)
+            correction_strength = 0.8  # 80% correction
+            corrected_cents = cents_deviation * (1 - correction_strength)
+            
+            # Convert back to frequency
+            corrected_frequency = target_frequency * (2 ** (corrected_cents / 1200))
+            
+            return corrected_frequency
         
         return frequency
     
-    def hps_pitch_detection(self, audio_data):
-        """
-        HPS (Harmonic Product Spectrum) pitch detection algorithm.
-        Based on TomSchimansky GuitarTuner implementation.
-        
-        This algorithm multiplies the FFT spectrum with its downsampled versions
-        to enhance the fundamental frequency and suppress harmonics.
-        """
-        if len(audio_data) < 1024:
-            return 0.0
-        
-        # Apply window function to reduce spectral leakage
-        windowed = audio_data * np.hanning(len(audio_data))
-        
-        # Compute FFT
-        fft = np.fft.rfft(windowed)
-        magnitude = np.abs(fft)
-        
-        # Frequency resolution
-        freq_resolution = self.sample_rate / len(windowed)
-        
-        # Convert frequency range to bin indices
-        min_bin = max(1, int(self.min_frequency / freq_resolution))
-        max_bin = min(len(magnitude) - 1, int(self.max_frequency / freq_resolution))
-        
-        if min_bin >= max_bin:
-            return 0.0
-        
-        # Initialize HPS spectrum with the original magnitude spectrum
-        hps_spectrum = magnitude[min_bin:max_bin].copy()
-        
-        # Apply HPS: multiply with downsampled versions
-        for harmonic in range(2, self.hps_harmonics + 1):
-            # Calculate the length for this harmonic
-            harmonic_length = len(hps_spectrum) // harmonic
-            if harmonic_length < 20:  # Need minimum length for reliable detection
-                break
-                
-            # Create downsampled version by taking every 'harmonic'-th sample
-            # This effectively compresses the spectrum by the harmonic factor
-            downsampled = np.zeros(harmonic_length)
-            for i in range(harmonic_length):
-                # Average multiple bins to reduce noise
-                start_idx = i * harmonic
-                end_idx = min(start_idx + harmonic, len(hps_spectrum))
-                if end_idx > start_idx:
-                    downsampled[i] = np.mean(hps_spectrum[start_idx:end_idx])
-            
-            # Multiply with existing HPS spectrum (only the overlapping part)
-            hps_spectrum[:harmonic_length] *= downsampled
-        
-        # Find the peak in HPS spectrum
-        if len(hps_spectrum) == 0:
-            return 0.0
-        
-        # Apply smoothing to reduce noise
-        if len(hps_spectrum) > 5:
-            # Simple moving average
-            kernel_size = 3
-            kernel = np.ones(kernel_size) / kernel_size
-            hps_spectrum = np.convolve(hps_spectrum, kernel, mode='same')
-        
-        # Find the strongest peak
-        peak_index = np.argmax(hps_spectrum)
-        peak_value = hps_spectrum[peak_index]
-        
-        # Check if peak is significant enough
-        mean_value = np.mean(hps_spectrum)
-        if peak_value < mean_value * 2:  # Peak should be at least 2x the mean
-            return 0.0
-        
-        # Convert back to frequency
-        frequency = (min_bin + peak_index) * freq_resolution
-        
-        # Parabolic interpolation for sub-bin accuracy
-        if 1 <= peak_index < len(hps_spectrum) - 1:
-            y1, y2, y3 = hps_spectrum[peak_index-1], hps_spectrum[peak_index], hps_spectrum[peak_index+1]
-            
-            # Avoid division by zero and ensure valid parabola
-            denominator = 2 * (2*y2 - y1 - y3)
-            if y2 > 0 and abs(denominator) > 1e-10:
-                x_offset = (y3 - y1) / denominator
-                # Limit offset to reasonable range
-                x_offset = max(-0.5, min(0.5, x_offset))
-                frequency = (min_bin + peak_index + x_offset) * freq_resolution
-        
-        # Validate frequency range
-        if self.min_frequency <= frequency <= self.max_frequency:
-            return frequency
-        
-        return 0.0
-    
-    def frequency_to_note(self, frequency):
-        """
-        Convert frequency to musical note using the formula from TomSchimansky GuitarTuner:
-        12 * log2(f / a4_frequency) + 69
-        """
-        if frequency <= 0:
-            return None, 0
-            
-        a4_frequency = 440.0  # A4 reference frequency
-        
-        # Calculate MIDI note number
-        midi_note = 12 * np.log2(frequency / a4_frequency) + 69
-        
-        # Round to nearest semitone
-        midi_note_rounded = round(midi_note)
-        
-        # Calculate cents deviation
-        cents_deviation = (midi_note - midi_note_rounded) * 100
-        
-        # Convert MIDI note to note name
-        note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-        octave = (midi_note_rounded - 12) // 12
-        note_index = (midi_note_rounded - 12) % 12
-        
-        if 0 <= note_index < len(note_names) and octave >= 0:
-            note_name = f"{note_names[int(note_index)]}{int(octave)}"
-            return note_name, cents_deviation
-        
-        return None, 0
-    
-        
     def update_ui(self):
         """Update UI with current frequency information."""
         if not self.is_listening:
             return
-            
+        
         # Update frequency display
         self.current_freq_label.config(text=f"Frequência atual: {self.current_frequency:.1f} Hz")
         
         # Get detected note and cents deviation
-        detected_note, cents_deviation = self.frequency_to_note(self.current_frequency)
-        
-        if detected_note:
-            self.detected_note_label.config(text=f"Nota detectada: {detected_note}")
-            self.cents_label.config(text=f"Desvio: {cents_deviation:+.1f} cents")
+        if self.current_frequency > 0:
+            detected_note, closest_pitch = self.find_closest_note(self.current_frequency)
             
-            # Color coding for cents deviation
-            if abs(cents_deviation) < 5:  # Very close (< 5 cents)
-                self.cents_label.config(fg='green')
-            elif abs(cents_deviation) < 20:  # Close (< 20 cents)
-                self.cents_label.config(fg='orange')
-            else:  # Far (> 20 cents)
-                self.cents_label.config(fg='red')
+            if detected_note:
+                self.detected_note_label.config(text=f"Nota detectada: {detected_note}")
+                
+                # Calculate cents deviation
+                cents_deviation = 1200 * np.log2(self.current_frequency / closest_pitch) if closest_pitch > 0 else 0
+                
+                self.cents_label.config(text=f"Desvio: {cents_deviation:+.1f} cents")
+                
+                # Color coding for cents deviation
+                if abs(cents_deviation) < 5:  # Very close (< 5 cents)
+                    self.cents_label.config(fg='green')
+                    self.tuning_label.config(text="🎯 AFINADO!", fg='green')
+                elif abs(cents_deviation) < 20:  # Close (< 20 cents)
+                    self.cents_label.config(fg='orange')
+                    direction = "agudo" if cents_deviation > 0 else "grave"
+                    self.tuning_label.config(text=f"📈 Muito {direction}", fg='orange')
+                else:  # Far (> 20 cents)
+                    self.cents_label.config(fg='red')
+                    direction = "AGUDO" if cents_deviation > 0 else "GRAVE"
+                    self.tuning_label.config(text=f"📊 {direction}!", fg='red')
+                
+                # Update visual meter
+                self.update_tuning_meter(cents_deviation)
+                
+                # Auto-detect closest guitar string if enabled
+                if self.auto_detect:
+                    # Find closest guitar string
+                    closest_guitar_note = None
+                    min_distance = float('inf')
+                    
+                    for note, freq in self.GUITAR_NOTES.items():
+                        distance = abs(self.current_frequency - freq)
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_guitar_note = note
+                    
+                    # Update target if close enough (within 50 Hz)
+                    if closest_guitar_note and min_distance < 50:
+                        if closest_guitar_note != self.detected_note:
+                            self.detected_note = closest_guitar_note
+                            self.target_note = closest_guitar_note
+                            self.string_var.set(closest_guitar_note)
+                            target_freq = self.GUITAR_NOTES[closest_guitar_note]
+                            self.target_freq_label.config(text=f"Corda detectada: {closest_guitar_note} ({target_freq:.2f} Hz)")
+                
+                # Apply auto-tuning if enabled
+                if self.auto_tune_enabled and self.target_note in self.GUITAR_NOTES:
+                    target_freq = self.GUITAR_NOTES[self.target_note]
+                    corrected_freq = self.apply_autotune(self.current_frequency, target_freq)
+                    if corrected_freq != self.current_frequency:
+                        self.status_label.config(text=f"Auto-tune: {corrected_freq:.1f} Hz", fg='blue')
+            
+            else:
+                self.detected_note_label.config(text="Nota detectada: --")
+                self.cents_label.config(text="Desvio: -- cents", fg='black')
+                self.tuning_label.config(text="🎵 Toque uma corda", fg='blue')
         else:
             self.detected_note_label.config(text="Nota detectada: --")
             self.cents_label.config(text="Desvio: -- cents", fg='black')
-        
-        # Auto-detect closest guitar string if enabled
-        if self.auto_detect:
-            guitar_string = self.find_closest_note(self.current_frequency)
-            if guitar_string and guitar_string in self.GUITAR_NOTES:
-                if guitar_string != self.detected_note:
-                    self.detected_note = guitar_string
-                    self.target_note = guitar_string
-                    self.string_var.set(guitar_string)
-                    target_freq = self.GUITAR_NOTES[guitar_string]
-                    self.target_freq_label.config(text=f"Corda detectada: {guitar_string} ({target_freq:.0f} Hz)")
-        
-        # Calculate tuning status for guitar strings
-        if self.target_note in self.GUITAR_NOTES:
-            target_freq = self.GUITAR_NOTES[self.target_note]
-            diff = self.current_frequency - target_freq
-            diff_cents = 1200 * math.log2(self.current_frequency / target_freq) if target_freq > 0 and self.current_frequency > 0 else 0
-        else:
-            # Use the general cents deviation
-            diff_cents = cents_deviation
-        
-        # Update tuning status
-        if abs(diff_cents) < 5:  # Within 5 cents
-            self.tuning_label.config(text="🎯 AFINADO!", fg='green')
-            status_color = 'green'
-        elif diff_cents > 0:
-            self.tuning_label.config(text=f"🔺 AGUDO (+{diff_cents:.1f} cents)", fg='red')
-            status_color = 'red'
-        else:
-            self.tuning_label.config(text=f"🔻 GRAVE ({diff_cents:.1f} cents)", fg='blue')
-            status_color = 'blue'
-            
-        # Update visual meter
-        self.draw_tuning_meter(diff_cents)
-        
-    def draw_tuning_meter(self, cents_diff: float):
-        """Draw the visual tuning meter."""
-        self.canvas.delete("all")
-        
-        # Canvas dimensions
-        width = 400
-        height = 100
-        center_x = width // 2
-        center_y = height // 2
-        
-        # Draw background
-        self.canvas.create_rectangle(0, 0, width, height, fill='lightgray', outline='black')
-        
-        # Draw center line
-        self.canvas.create_line(center_x, 10, center_x, height-10, fill='black', width=2)
-        
-        # Draw scale marks
-        for i in range(-50, 51, 10):
-            x = center_x + i * 3
-            if x > 0 and x < width:
-                mark_height = 20 if i % 20 == 0 else 10
-                self.canvas.create_line(x, center_y - mark_height//2, 
-                                      x, center_y + mark_height//2, fill='black')
-                if i % 20 == 0 and i != 0:
-                    self.canvas.create_text(x, center_y + 25, text=f"{i}", font=("Arial", 8))
-        
-        # Draw tuning zones
-        # Green zone (in tune)
-        green_left = center_x - 5 * 3
-        green_right = center_x + 5 * 3
-        self.canvas.create_rectangle(green_left, 10, green_right, height-10, 
-                                   fill='lightgreen', outline='green')
-        
-        # Draw needle
-        if cents_diff != 0:
-            needle_x = center_x + max(-150, min(150, cents_diff)) * 3
-            needle_color = 'green' if abs(cents_diff) < 5 else 'red' if cents_diff > 0 else 'blue'
-            
-            # Needle triangle
-            self.canvas.create_polygon(needle_x, center_y - 15,
-                                     needle_x - 8, center_y + 15,
-                                     needle_x + 8, center_y + 15,
-                                     fill=needle_color, outline='black')
-        
-        # Labels
-        self.canvas.create_text(50, 20, text="GRAVE", font=("Arial", 10), fill='blue')
-        self.canvas.create_text(center_x, 20, text="AFINADO", font=("Arial", 10), fill='green')
-        self.canvas.create_text(width-50, 20, text="AGUDO", font=("Arial", 10), fill='red')
-
+            self.tuning_label.config(text="🎵 Toque uma corda", fg='blue')
 
 class TunerWindow:
-    """Standalone tuner window."""
+    """Advanced Tuner window wrapper."""
     
-    def __init__(self, parent: Optional[tk.Widget] = None):
+    def __init__(self, parent=None):
+        """Initialize tuner window."""
+        self.parent = parent
+        
+        # Create window
         if parent:
             self.window = tk.Toplevel(parent)
         else:
             self.window = tk.Tk()
             
-        self.window.title("🎸 Afinador de Guitarra")
-        self.window.geometry("600x750")
+        self.window.title("🎸 Afinador Avançado HPS")
+        self.window.geometry("650x800")
         self.window.resizable(False, False)
         
         # Create tuner
-        self.tuner = GuitarTuner(self.window)
+        self.tuner = AdvancedGuitarTuner(self.window)
         
         # Handle window close
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
-        
+    
     def on_close(self):
         """Handle window close event."""
         if hasattr(self.tuner, 'stop_listening'):
             self.tuner.stop_listening()
+        if hasattr(self.tuner, 'stop_recording'):
+            self.tuner.stop_recording()
         self.window.destroy()
-        
-    def show(self):
-        """Show the tuner window."""
-        self.window.lift()
-        self.window.focus_force()
 
-
-def run_standalone():
-    """Run the tuner as a standalone application."""
-    if not AUDIO_AVAILABLE:
-        print("Erro: Instale as dependências necessárias:")
-        print("pip install numpy pyaudio")
-        return
-        
-    app = TunerWindow()
-    app.window.mainloop()
-
-
-if __name__ == "__main__":
-    run_standalone()
+# For backward compatibility
+def show_tuner_window(parent=None):
+    """Show the advanced tuner window."""
+    return TunerWindow(parent)

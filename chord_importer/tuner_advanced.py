@@ -13,52 +13,17 @@ import os
 from typing import Optional, List, Tuple
 import wave
 
-# Try to import audio libraries with graceful fallback
-try:
-    import numpy as np
-    import pyaudio
-    import scipy.io.wavfile
-    import scipy.fftpack
-    AUDIO_AVAILABLE = True
-except ImportError:
-    AUDIO_AVAILABLE = False
-    # Create dummy numpy for fallback
-    class np:
-        @staticmethod
-        def zeros(size, dtype=None): return [0] * size
-        @staticmethod
-        def hanning(size): return [1] * size
-        @staticmethod
-        def array(x): return x
-        @staticmethod
-        def abs(x): return [abs(i) for i in x] if isinstance(x, list) else abs(x)
-        @staticmethod
-        def argmax(x): return x.index(max(x)) if x else 0
-        @staticmethod
-        def log2(x): return math.log2(x) if x > 0 else 0
-        @staticmethod
-        def round(x): return round(x)
-        @staticmethod
-        def interp(x, xp, fp): return fp[0] if fp else 0
-        @staticmethod
-        def arange(start, stop, step=1): return list(range(int(start), int(stop), int(step)))
-        @staticmethod
-        def ceil(x): return math.ceil(x)
-        @staticmethod
-        def multiply(a, b): return [x*y for x, y in zip(a, b)]
-        @staticmethod
-        def concatenate(arrays): 
-            result = []
-            for arr in arrays:
-                result.extend(arr)
-            return result
-        float64 = float
-        int16 = int
-        
-        class linalg:
-            @staticmethod
-            def norm(x, ord=2):
-                return math.sqrt(sum(i*i for i in x))
+# Required audio libraries - NO FALLBACKS
+import numpy as np
+import pyaudio
+import scipy.io.wavfile
+import scipy.fftpack
+
+# Verify critical dependencies are available
+if not hasattr(np, 'zeros'):
+    raise ImportError("numpy not properly installed")
+if not hasattr(pyaudio, 'PyAudio'):
+    raise ImportError("pyaudio not properly installed")
 
 class AdvancedGuitarTuner:
     """
@@ -125,33 +90,26 @@ class AdvancedGuitarTuner:
     
     def get_available_microphones(self) -> List[dict]:
         """Get list of available microphones."""
-        if not AUDIO_AVAILABLE:
-            return [{"index": 0, "name": "Microfone padrão (áudio não disponível)"}]
+        audio = pyaudio.PyAudio()
+        mics = []
         
-        try:
-            audio = pyaudio.PyAudio()
-            mics = []
+        for i in range(audio.get_device_count()):
+            device_info = audio.get_device_info_by_index(i)
+            # Only include input devices
+            if device_info['maxInputChannels'] > 0:
+                mics.append({
+                    "index": i,
+                    "name": device_info['name'],
+                    "channels": device_info['maxInputChannels'],
+                    "sample_rate": int(device_info['defaultSampleRate'])
+                })
+        
+        audio.terminate()
+        
+        if not mics:
+            raise RuntimeError("No microphones found")
             
-            for i in range(audio.get_device_count()):
-                device_info = audio.get_device_info_by_index(i)
-                # Only include input devices
-                if device_info['maxInputChannels'] > 0:
-                    mics.append({
-                        "index": i,
-                        "name": device_info['name'],
-                        "channels": device_info['maxInputChannels'],
-                        "sample_rate": int(device_info['defaultSampleRate'])
-                    })
-            
-            audio.terminate()
-            
-            if not mics:
-                mics = [{"index": 0, "name": "Nenhum microfone encontrado"}]
-                
-            return mics
-            
-        except Exception as e:
-            return [{"index": 0, "name": f"Erro ao detectar microfones: {str(e)}"}]
+        return mics
     
     def find_closest_note(self, pitch: float) -> Tuple[str, float]:
         """
@@ -270,9 +228,6 @@ class AdvancedGuitarTuner:
     
     def audio_callback(self, in_data, frame_count, time_info, status):
         """Audio callback function for real-time processing."""
-        if not AUDIO_AVAILABLE:
-            return (None, pyaudio.paContinue)
-        
         if status:
             print(f"Audio callback status: {status}")
         
@@ -514,11 +469,6 @@ class AdvancedGuitarTuner:
     
     def start_listening(self):
         """Start audio input and frequency detection."""
-        if not AUDIO_AVAILABLE:
-            self.status_label.config(text="Erro: Bibliotecas de áudio não disponíveis", fg='red')
-            messagebox.showerror("Erro", "Bibliotecas de áudio (numpy, pyaudio) não estão instaladas!")
-            return
-        
         if self.is_listening:
             return
         

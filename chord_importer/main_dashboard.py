@@ -13,20 +13,26 @@ from datetime import datetime
 try:
     from .database import get_database
     from .settings import get_settings
-    from .tuner_new import TunerWindow
+    from .tuner import TunerWindow
     from .cipher_manager import show_cipher_manager
     from .settings_window import show_settings_window
     from .chord_identifier import show_chord_identifier
     from .music_visualizer import show_music_visualizer
+    from .melody_analyzer import show_melody_analyzer
+    from .advanced_melody_analyzer import show_advanced_melody_analyzer
+    from .karaoke_analyzer import show_karaoke_analyzer
     from .serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
 except ImportError:
     from chord_importer.database import get_database
     from chord_importer.settings import get_settings
-    from chord_importer.tuner_new import TunerWindow
+    from chord_importer.tuner import TunerWindow
     from chord_importer.cipher_manager import show_cipher_manager
     from chord_importer.settings_window import show_settings_window
     from chord_importer.chord_identifier import show_chord_identifier
     from chord_importer.music_visualizer import show_music_visualizer
+    from chord_importer.melody_analyzer import show_melody_analyzer
+    from chord_importer.advanced_melody_analyzer import show_advanced_melody_analyzer
+    from chord_importer.karaoke_analyzer import show_karaoke_analyzer
     from chord_importer.serper import SearchResult, search_cifraclub, search_filetype, search_query, search_chord_sequence, search_chord_sequence_dynamic, search_all_sources_with_dorks
 
 
@@ -733,6 +739,24 @@ class MusicalToolsDashboard(tk.Tk):
                 "description": "Configure extraction rules for different music sites",
                 "icon": "🌐",
                 "command": self.open_source_config
+            },
+            {
+                "title": "Melody Analyzer",
+                "description": "Analyze melodies from audio files and compare with real-time singing",
+                "icon": "🎼",
+                "command": self.open_melody_analyzer
+            },
+            {
+                "title": "Advanced Melody Analyzer",
+                "description": "AI-powered vocal separation and precise melody extraction with piano roll",
+                "icon": "🎹",
+                "command": self.open_advanced_melody_analyzer
+            },
+            {
+                "title": "Karaoke Analyzer",
+                "description": "Complete karaoke system with Spleeter vocal isolation and real-time pitch tracking",
+                "icon": "🎤",
+                "command": self.open_karaoke_analyzer
             }
         ]
         
@@ -1093,6 +1117,30 @@ class MusicalToolsDashboard(tk.Tk):
             self.status_bar.set_status("Source Configuration opened")
         except Exception as e:
             messagebox.showerror("Error", f"Error opening Source Configuration: {str(e)}")
+    
+    def open_melody_analyzer(self):
+        """Open the Melody Analyzer window."""
+        try:
+            show_melody_analyzer(self)
+            self.status_bar.set_status("Melody Analyzer opened")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error opening Melody Analyzer: {str(e)}")
+    
+    def open_advanced_melody_analyzer(self):
+        """Open the Advanced Melody Analyzer window."""
+        try:
+            show_advanced_melody_analyzer(self)
+            self.status_bar.set_status("Advanced Melody Analyzer opened")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error opening Advanced Melody Analyzer: {str(e)}")
+    
+    def open_karaoke_analyzer(self):
+        """Open the Karaoke Analyzer window."""
+        try:
+            show_karaoke_analyzer(self)
+            self.status_bar.set_status("Karaoke Analyzer opened")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error opening Karaoke Analyzer: {str(e)}")
     
     def focus_search_tab(self):
         """Focus on the search tab."""
