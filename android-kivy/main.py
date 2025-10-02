@@ -1,6 +1,6 @@
 """
 ChordImporter - Android/Kivy Version
-Proof of Concept - Guitar Tuner with HPS Algorithm
+Beautiful Mobile Guitar Tuner with HPS Algorithm
 """
 
 from kivy.app import App
@@ -10,14 +10,20 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
-from kivy.properties import NumericProperty, StringProperty, BooleanProperty
+from kivy.uix.image import Image
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, Line
+from kivy.graphics.instructions import InstructionGroup
+from kivy.animation import Animation
+from kivy.properties import NumericProperty, StringProperty, BooleanProperty, ListProperty
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.metrics import dp
+from kivy.metrics import dp, sp
 import webbrowser
 
 import sys
 import os
+import math
 import numpy as np
 
 # Add parent directory to path to import existing modules
@@ -71,6 +77,175 @@ def open_url(url):
         except Exception as e:
             print(f"Browser open failed: {e}")
             return False
+
+
+class BeautifulButton(Button):
+    """Custom button with beautiful styling"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(size=self.update_canvas, pos=self.update_canvas)
+        self.update_canvas()
+    
+    def update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            # Background gradient effect
+            Color(0.2, 0.6, 1, 1)  # Blue
+            RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(12)]
+            )
+            # Highlight effect
+            Color(1, 1, 1, 0.3)
+            RoundedRectangle(
+                pos=(self.pos[0], self.pos[1] + self.size[1] * 0.7),
+                size=(self.size[0], self.size[1] * 0.3),
+                radius=[dp(12)]
+            )
+
+
+class BeautifulCard(Widget):
+    """Beautiful card widget with shadows and rounded corners"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(size=self.update_canvas, pos=self.update_canvas)
+        self.update_canvas()
+    
+    def update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            # Shadow effect
+            Color(0, 0, 0, 0.1)
+            RoundedRectangle(
+                pos=(self.pos[0] + dp(2), self.pos[1] - dp(2)),
+                size=self.size,
+                radius=[dp(16)]
+            )
+            # Main card
+            Color(1, 1, 1, 1)
+            RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(16)]
+            )
+
+
+class FrequencyMeter(Widget):
+    """Beautiful frequency meter with animated needle"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.needle_angle = 0
+        self.target_angle = 0
+        self.bind(size=self.update_canvas, pos=self.update_canvas)
+        self.update_canvas()
+    
+    def set_frequency(self, freq):
+        """Set frequency and animate needle"""
+        if freq < 50:
+            self.target_angle = -90  # Left side
+        elif freq > 1000:
+            self.target_angle = 90   # Right side
+        else:
+            # Map frequency to angle (-90 to 90 degrees)
+            self.target_angle = (freq - 50) / (1000 - 50) * 180 - 90
+        
+        # Animate needle
+        anim = Animation(needle_angle=self.target_angle, duration=0.3, transition='out_cubic')
+        anim.start(self)
+    
+    def update_canvas(self, *args):
+        self.canvas.clear()
+        if not self.size[0] or not self.size[1]:
+            return
+            
+        center_x = self.pos[0] + self.size[0] / 2
+        center_y = self.pos[1] + self.size[1] / 2
+        radius = min(self.size) * 0.4
+        
+        with self.canvas:
+            # Background circle
+            Color(0.95, 0.95, 0.95, 1)
+            Ellipse(pos=(center_x - radius, center_y - radius), size=(radius * 2, radius * 2))
+            
+            # Scale marks
+            Color(0.3, 0.3, 0.3, 1)
+            for i in range(0, 181, 30):
+                angle = math.radians(i - 90)
+                x1 = center_x + math.cos(angle) * (radius - dp(10))
+                y1 = center_y + math.sin(angle) * (radius - dp(10))
+                x2 = center_x + math.cos(angle) * (radius - dp(20))
+                y2 = center_y + math.sin(angle) * (radius - dp(20))
+                Line(points=[x1, y1, x2, y2], width=dp(2))
+            
+            # Needle
+            Color(1, 0.2, 0.2, 1)
+            angle = math.radians(self.needle_angle)
+            needle_x = center_x + math.cos(angle) * (radius - dp(15))
+            needle_y = center_y + math.sin(angle) * (radius - dp(15))
+            Line(points=[center_x, center_y, needle_x, needle_y], width=dp(4))
+            
+            # Center dot
+            Color(0.2, 0.2, 0.2, 1)
+            Ellipse(pos=(center_x - dp(3), center_y - dp(3)), size=(dp(6), dp(6)))
+
+
+class BeautifulLabel(Label):
+    """Beautiful label with custom styling"""
+    
+    def __init__(self, **kwargs):
+        # Set default beautiful styling
+        defaults = {
+            'color': (0.2, 0.2, 0.2, 1),
+            'font_size': sp(16),
+            'halign': 'center',
+            'valign': 'middle'
+        }
+        defaults.update(kwargs)
+        super().__init__(**defaults)
+
+
+class GradientBackground(Widget):
+    """Beautiful gradient background widget"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(size=self.update_canvas, pos=self.update_canvas)
+        self.update_canvas()
+    
+    def update_canvas(self, *args):
+        self.canvas.clear()
+        with self.canvas:
+            # Create gradient effect with multiple rectangles
+            Color(0.95, 0.95, 0.98, 1)  # Light gray
+            Rectangle(pos=self.pos, size=self.size)
+            
+            # Add subtle gradient overlay
+            Color(0.9, 0.9, 0.95, 0.3)
+            Rectangle(pos=(self.pos[0], self.pos[1] + self.size[1] * 0.7), 
+                     size=(self.size[0], self.size[1] * 0.3))
+
+
+class AnimatedButton(BeautifulButton):
+    """Button with beautiful animations"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(on_press=self.animate_press)
+    
+    def animate_press(self, instance):
+        """Animate button press"""
+        # Scale animation
+        anim = Animation(scale=0.95, duration=0.1) + Animation(scale=1.0, duration=0.1)
+        anim.start(self)
+        
+        # Color pulse animation
+        original_color = self.color
+        pulse_anim = Animation(color=(1, 1, 1, 0.8), duration=0.1) + Animation(color=original_color, duration=0.1)
+        pulse_anim.start(self)
 
 
 class AudioInput:
@@ -226,95 +401,142 @@ class TunerScreen(Screen):
         self.build_ui()
     
     def build_ui(self):
-        """Build the tuner UI - Mobile Optimized"""
-        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(12))
+        """Build the beautiful tuner UI - Mobile Optimized"""
+        # Main container with gradient background
+        main_container = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
         
-        # Header with larger touch-friendly size
-        header = Label(
-            text='🎸 Guitar Tuner',
-            font_size='36sp',
-            size_hint_y=0.08,
-            color=(0.2, 0.6, 1, 1),
-            bold=True
+        # Header with icon and title
+        header_card = BeautifulCard(size_hint_y=0.12)
+        header_layout = BoxLayout(orientation='horizontal', padding=dp(15))
+        
+        # Guitar icon
+        icon_label = BeautifulLabel(
+            text='🎸',
+            font_size=sp(32),
+            size_hint_x=0.2
         )
-        layout.add_widget(header)
+        header_layout.add_widget(icon_label)
+        
+        # Title
+        title_label = BeautifulLabel(
+            text='Guitar Tuner',
+            font_size=sp(24),
+            bold=True,
+            color=(0.2, 0.6, 1, 1),
+            size_hint_x=0.8
+        )
+        header_layout.add_widget(title_label)
+        
+        header_card.add_widget(header_layout)
+        main_container.add_widget(header_card)
+        
+        # Frequency meter card
+        meter_card = BeautifulCard(size_hint_y=0.25)
+        meter_layout = BoxLayout(orientation='vertical', padding=dp(20))
+        
+        # Frequency meter
+        self.freq_meter = FrequencyMeter(size_hint_y=0.7)
+        meter_layout.add_widget(self.freq_meter)
         
         # Frequency display
-        self.freq_label = Label(
+        self.freq_label = BeautifulLabel(
             text='0.00 Hz',
-            font_size='36sp',
-            size_hint_y=0.12,
-            color=(1, 1, 1, 1)
+            font_size=sp(20),
+            color=(0.2, 0.2, 0.2, 1),
+            size_hint_y=0.3
         )
-        layout.add_widget(self.freq_label)
+        meter_layout.add_widget(self.freq_label)
         
-        # Note display
-        self.note_label = Label(
+        meter_card.add_widget(meter_layout)
+        main_container.add_widget(meter_card)
+        
+        # Note display card
+        note_card = BeautifulCard(size_hint_y=0.2)
+        note_layout = BoxLayout(orientation='vertical', padding=dp(20))
+        
+        self.note_label = BeautifulLabel(
             text='--',
-            font_size='96sp',
-            size_hint_y=0.25,
+            font_size=sp(48),
             bold=True,
-            color=(0.2, 1, 0.2, 1)
+            color=(0.2, 0.8, 0.2, 1),
+            size_hint_y=0.6
         )
-        layout.add_widget(self.note_label)
+        note_layout.add_widget(self.note_label)
         
-        # Cents display
-        self.cents_label = Label(
+        self.cents_label = BeautifulLabel(
             text='±0.0 cents',
-            font_size='28sp',
-            size_hint_y=0.1,
-            color=(1, 1, 1, 1)
+            font_size=sp(16),
+            color=(0.5, 0.5, 0.5, 1),
+            size_hint_y=0.4
         )
-        layout.add_widget(self.cents_label)
+        note_layout.add_widget(self.cents_label)
         
-        # Status
-        self.status_label = Label(
+        note_card.add_widget(note_layout)
+        main_container.add_widget(note_card)
+        
+        # Status card
+        status_card = BeautifulCard(size_hint_y=0.08)
+        status_layout = BoxLayout(orientation='horizontal', padding=dp(15))
+        
+        self.status_label = BeautifulLabel(
             text=self.status_text,
-            font_size='16sp',
-            size_hint_y=0.08,
-            color=(0.7, 0.7, 0.7, 1)
+            font_size=sp(14),
+            color=(0.6, 0.6, 0.6, 1),
+            size_hint_x=0.8
         )
-        layout.add_widget(self.status_label)
+        status_layout.add_widget(self.status_label)
         
-        # Spacer
-        layout.add_widget(Label(size_hint_y=0.15))
+        # Recording indicator
+        self.recording_indicator = BeautifulLabel(
+            text='●',
+            font_size=sp(20),
+            color=(1, 0.2, 0.2, 0),
+            size_hint_x=0.2
+        )
+        status_layout.add_widget(self.recording_indicator)
         
-        # Control buttons - Larger for touch
-        btn_layout = BoxLayout(size_hint_y=0.18, spacing=dp(10))
+        status_card.add_widget(status_layout)
+        main_container.add_widget(status_card)
         
-        self.start_btn = Button(
-            text='START',
-            font_size='24sp',
-            background_color=(0.2, 0.8, 0.2, 1),
-            background_normal='',
-            size_hint=(1, 1)
+        # Control buttons - Beautiful design
+        btn_layout = BoxLayout(size_hint_y=0.2, spacing=dp(15))
+        
+        # Start/Stop button
+        self.start_btn = BeautifulButton(
+            text='🎵 START',
+            font_size=sp(18),
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint=(0.4, 1)
         )
         self.start_btn.bind(on_press=self.toggle_recording)
         btn_layout.add_widget(self.start_btn)
         
-        search_btn = Button(
-            text='SEARCH',
-            font_size='24sp',
-            background_color=(0.2, 0.6, 1, 1),
-            background_normal='',
-            size_hint=(1, 1)
+        # Search button
+        search_btn = BeautifulButton(
+            text='🔍 SEARCH',
+            font_size=sp(18),
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint=(0.3, 1)
         )
         search_btn.bind(on_press=self.go_to_search)
         btn_layout.add_widget(search_btn)
         
-        library_btn = Button(
-            text='LIBRARY',
-            font_size='24sp',
-            background_color=(0.8, 0.4, 0.8, 1),
-            background_normal='',
-            size_hint=(1, 1)
+        # Library button
+        library_btn = BeautifulButton(
+            text='📚 LIBRARY',
+            font_size=sp(18),
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint=(0.3, 1)
         )
         library_btn.bind(on_press=self.go_to_library)
         btn_layout.add_widget(library_btn)
         
-        layout.add_widget(btn_layout)
+        main_container.add_widget(btn_layout)
         
-        self.add_widget(layout)
+        self.add_widget(main_container)
         
         # Bind properties to update labels
         self.bind(frequency=self.update_freq_label)
@@ -338,9 +560,14 @@ class TunerScreen(Screen):
             
             self.audio_input.start()
             self.is_recording = True
-            self.start_btn.text = 'STOP'
-            self.start_btn.background_color = (0.8, 0.2, 0.2, 1)
+            self.start_btn.text = '⏹ STOP'
             self.status_text = "Listening... Play a note"
+            
+            # Animate recording indicator
+            self.recording_indicator.color = (1, 0.2, 0.2, 1)
+            anim = Animation(color=(1, 0.2, 0.2, 0.3), duration=0.5) + Animation(color=(1, 0.2, 0.2, 1), duration=0.5)
+            anim.repeat = True
+            anim.start(self.recording_indicator)
             
             # Schedule UI updates
             Clock.schedule_interval(self.update_display, 0.1)
@@ -355,9 +582,12 @@ class TunerScreen(Screen):
             self.audio_input.stop()
         
         self.is_recording = False
-        self.start_btn.text = 'START'
-        self.start_btn.background_color = (0.2, 0.8, 0.2, 1)
+        self.start_btn.text = '🎵 START'
         self.status_text = "Stopped"
+        
+        # Stop recording indicator animation
+        self.recording_indicator.color = (1, 0.2, 0.2, 0)
+        Animation.cancel_all(self.recording_indicator)
         
         Clock.unschedule(self.update_display)
     
@@ -382,6 +612,9 @@ class TunerScreen(Screen):
                 self.frequency = float(freq)
                 self.note_name = str(note)
                 self.cents_off = float(cents)
+                
+                # Update frequency meter
+                self.freq_meter.set_frequency(freq)
                 
                 # Update status based on tuning accuracy
                 if abs(cents) < 5:
@@ -429,70 +662,91 @@ class SearchScreen(Screen):
         self.build_ui()
     
     def build_ui(self):
-        """Build the search UI - Mobile Optimized"""
-        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(10))
+        """Build the beautiful search UI - Mobile Optimized"""
+        main_container = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
         
-        # Header
-        header = Label(
-            text='🔍 Chord Search',
-            font_size='32sp',
-            size_hint_y=0.08,
-            color=(0.2, 0.6, 1, 1),
-            bold=True
+        # Header card
+        header_card = BeautifulCard(size_hint_y=0.1)
+        header_layout = BoxLayout(orientation='horizontal', padding=dp(15))
+        
+        # Search icon
+        icon_label = BeautifulLabel(
+            text='🔍',
+            font_size=sp(28),
+            size_hint_x=0.2
         )
-        layout.add_widget(header)
+        header_layout.add_widget(icon_label)
         
-        # Search input box - Larger for mobile
-        search_box = BoxLayout(size_hint_y=0.12, spacing=dp(10))
+        # Title
+        title_label = BeautifulLabel(
+            text='Chord Search',
+            font_size=sp(22),
+            bold=True,
+            color=(0.2, 0.6, 1, 1),
+            size_hint_x=0.8
+        )
+        header_layout.add_widget(title_label)
+        
+        header_card.add_widget(header_layout)
+        main_container.add_widget(header_card)
+        
+        # Search input card
+        search_card = BeautifulCard(size_hint_y=0.12)
+        search_layout = BoxLayout(orientation='horizontal', padding=dp(15), spacing=dp(10))
         
         self.search_input = TextInput(
             hint_text='Artist, song, or chords...',
-            font_size='20sp',
+            font_size=sp(16),
             multiline=False,
-            size_hint_x=0.65,
-            padding=[dp(10), dp(10)]
+            size_hint_x=0.7,
+            padding=[dp(15), dp(15)],
+            background_color=(0.98, 0.98, 0.98, 1),
+            foreground_color=(0.2, 0.2, 0.2, 1)
         )
         self.search_input.bind(on_text_validate=self.perform_search)
-        search_box.add_widget(self.search_input)
+        search_layout.add_widget(self.search_input)
         
-        search_btn = Button(
-            text='GO',
-            font_size='24sp',
-            size_hint_x=0.35,
-            background_color=(0.2, 0.8, 0.2, 1),
-            background_normal='',
-            bold=True
+        search_btn = BeautifulButton(
+            text='🔍',
+            font_size=sp(20),
+            size_hint_x=0.3,
+            color=(1, 1, 1, 1)
         )
         search_btn.bind(on_press=self.perform_search)
-        search_box.add_widget(search_btn)
+        search_layout.add_widget(search_btn)
         
-        layout.add_widget(search_box)
+        search_card.add_widget(search_layout)
+        main_container.add_widget(search_card)
         
-        # Results area - Better scrolling
-        scroll = ScrollView(size_hint=(1, 0.70), scroll_type=['bars', 'content'], bar_width=dp(10))
+        # Results area - Beautiful scrolling
+        scroll = ScrollView(
+            size_hint=(1, 0.68), 
+            scroll_type=['bars', 'content'], 
+            bar_width=dp(8),
+            bar_color=(0.2, 0.6, 1, 0.8)
+        )
         self.results_layout = BoxLayout(
             orientation='vertical',
-            spacing=dp(8),
+            spacing=dp(12),
             size_hint_y=None,
-            padding=[dp(5), 0]
+            padding=[dp(10), dp(10)]
         )
         self.results_layout.bind(minimum_height=self.results_layout.setter('height'))
         scroll.add_widget(self.results_layout)
-        layout.add_widget(scroll)
+        main_container.add_widget(scroll)
         
-        # Back button - Larger touch target
-        back_btn = Button(
+        # Back button - Beautiful design
+        back_btn = BeautifulButton(
             text='← BACK',
-            font_size='24sp',
-            size_hint_y=0.10,
-            background_color=(0.5, 0.5, 0.5, 1),
-            background_normal='',
-            bold=True
+            font_size=sp(16),
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint_y=0.1
         )
         back_btn.bind(on_press=self.go_back)
-        layout.add_widget(back_btn)
+        main_container.add_widget(back_btn)
         
-        self.add_widget(layout)
+        self.add_widget(main_container)
     
     def perform_search(self, instance):
         """Search using existing backend"""
@@ -529,58 +783,70 @@ class SearchScreen(Screen):
                 self.results_layout.add_widget(no_results)
                 return
             
-            # Display results - With Open and Save buttons
+            # Display results - Beautiful cards
             for result in results[:20]:
-                # Container for each result
-                result_box = BoxLayout(
-                    orientation='horizontal',
-                    size_hint_y=None,
-                    height=dp(90),
-                    spacing=dp(8)
-                )
+                # Create beautiful result card
+                result_card = BeautifulCard(size_hint_y=None, height=dp(100))
+                result_layout = BoxLayout(orientation='horizontal', padding=dp(15), spacing=dp(10))
                 
-                # Song info button (opens browser)
-                info_btn = Button(
-                    text=f"{result.title}\n{result.url[:50]}...",
-                    font_size='16sp',
-                    size_hint_x=0.5,
-                    background_color=(0.2, 0.2, 0.3, 1),
-                    background_normal='',
+                # Song info section
+                info_layout = BoxLayout(orientation='vertical', size_hint_x=0.5, spacing=dp(5))
+                
+                # Song title
+                title_label = BeautifulLabel(
+                    text=result.title,
+                    font_size=sp(16),
+                    bold=True,
+                    color=(0.2, 0.2, 0.2, 1),
                     halign='left',
-                    valign='middle',
-                    padding=[dp(12), dp(8)]
+                    text_size=(None, None)
                 )
-                info_btn.url = result.url
-                info_btn.bind(on_press=self.open_result)
-                result_box.add_widget(info_btn)
+                title_label.bind(size=title_label.setter('text_size'))
+                info_layout.add_widget(title_label)
                 
-                # Save to library button
-                save_btn = Button(
+                # URL preview
+                url_label = BeautifulLabel(
+                    text=result.url[:60] + "..." if len(result.url) > 60 else result.url,
+                    font_size=sp(12),
+                    color=(0.5, 0.5, 0.5, 1),
+                    halign='left',
+                    text_size=(None, None)
+                )
+                url_label.bind(size=url_label.setter('text_size'))
+                info_layout.add_widget(url_label)
+                
+                result_layout.add_widget(info_layout)
+                
+                # Action buttons
+                btn_layout = BoxLayout(orientation='horizontal', size_hint_x=0.5, spacing=dp(8))
+                
+                # Save button
+                save_btn = BeautifulButton(
                     text='💾\nSAVE',
-                    font_size='18sp',
-                    size_hint_x=0.25,
-                    background_color=(0.2, 0.8, 0.2, 1),
-                    background_normal='',
-                    bold=True
+                    font_size=sp(14),
+                    bold=True,
+                    color=(1, 1, 1, 1),
+                    size_hint_x=0.5
                 )
                 save_btn.result_data = result
                 save_btn.bind(on_press=self.save_to_library)
-                result_box.add_widget(save_btn)
+                btn_layout.add_widget(save_btn)
                 
-                # Open browser button
-                open_btn = Button(
+                # Open button
+                open_btn = BeautifulButton(
                     text='🌐\nOPEN',
-                    font_size='18sp',
-                    size_hint_x=0.25,
-                    background_color=(0.2, 0.6, 1, 1),
-                    background_normal='',
-                    bold=True
+                    font_size=sp(14),
+                    bold=True,
+                    color=(1, 1, 1, 1),
+                    size_hint_x=0.5
                 )
                 open_btn.url = result.url
                 open_btn.bind(on_press=self.open_result)
-                result_box.add_widget(open_btn)
+                btn_layout.add_widget(open_btn)
                 
-                self.results_layout.add_widget(result_box)
+                result_layout.add_widget(btn_layout)
+                result_card.add_widget(result_layout)
+                self.results_layout.add_widget(result_card)
                 
         except Exception as e:
             self.results_layout.clear_widgets()
@@ -666,59 +932,73 @@ class LibraryScreen(Screen):
         self.load_songs()
     
     def build_ui(self):
-        """Build the library UI - Mobile Optimized"""
-        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(10))
+        """Build the beautiful library UI - Mobile Optimized"""
+        main_container = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
         
-        # Header - Better mobile layout
-        header_box = BoxLayout(size_hint_y=0.10, spacing=dp(10))
+        # Header card
+        header_card = BeautifulCard(size_hint_y=0.1)
+        header_layout = BoxLayout(orientation='horizontal', padding=dp(15))
         
-        header = Label(
-            text='📚 My Library',
-            font_size='32sp',
-            size_hint_x=0.7,
-            color=(0.2, 0.6, 1, 1),
-            bold=True
+        # Library icon
+        icon_label = BeautifulLabel(
+            text='📚',
+            font_size=sp(28),
+            size_hint_x=0.2
         )
-        header_box.add_widget(header)
+        header_layout.add_widget(icon_label)
         
-        refresh_btn = Button(
+        # Title
+        title_label = BeautifulLabel(
+            text='My Library',
+            font_size=sp(22),
+            bold=True,
+            color=(0.2, 0.6, 1, 1),
+            size_hint_x=0.6
+        )
+        header_layout.add_widget(title_label)
+        
+        # Refresh button
+        refresh_btn = BeautifulButton(
             text='↻',
-            font_size='32sp',
-            size_hint_x=0.3,
-            background_color=(0.3, 0.6, 0.9, 1),
-            background_normal='',
-            bold=True
+            font_size=sp(20),
+            size_hint_x=0.2,
+            color=(1, 1, 1, 1)
         )
         refresh_btn.bind(on_press=self.load_songs)
-        header_box.add_widget(refresh_btn)
+        header_layout.add_widget(refresh_btn)
         
-        layout.add_widget(header_box)
+        header_card.add_widget(header_layout)
+        main_container.add_widget(header_card)
         
-        # Songs list - Better scrolling
-        scroll = ScrollView(size_hint=(1, 0.80), scroll_type=['bars', 'content'], bar_width=dp(10))
+        # Songs list - Beautiful scrolling
+        scroll = ScrollView(
+            size_hint=(1, 0.8), 
+            scroll_type=['bars', 'content'], 
+            bar_width=dp(8),
+            bar_color=(0.2, 0.6, 1, 0.8)
+        )
         self.songs_layout = BoxLayout(
             orientation='vertical',
-            spacing=dp(8),
+            spacing=dp(12),
             size_hint_y=None,
-            padding=[dp(5), 0]
+            padding=[dp(10), dp(10)]
         )
         self.songs_layout.bind(minimum_height=self.songs_layout.setter('height'))
         scroll.add_widget(self.songs_layout)
-        layout.add_widget(scroll)
+        main_container.add_widget(scroll)
         
-        # Back button - Larger touch target
-        back_btn = Button(
+        # Back button - Beautiful design
+        back_btn = BeautifulButton(
             text='← BACK',
-            font_size='24sp',
-            size_hint_y=0.10,
-            background_color=(0.5, 0.5, 0.5, 1),
-            background_normal='',
-            bold=True
+            font_size=sp(16),
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint_y=0.1
         )
         back_btn.bind(on_press=self.go_back)
-        layout.add_widget(back_btn)
+        main_container.add_widget(back_btn)
         
-        self.add_widget(layout)
+        self.add_widget(main_container)
     
     def load_songs(self, instance=None):
         """Load songs from database"""
@@ -741,57 +1021,83 @@ class LibraryScreen(Screen):
                 self.songs_layout.add_widget(no_songs)
                 return
             
-            # Display each song - Better layout with action buttons
+            # Display each song - Beautiful cards
             for song in songs:
-                song_box = BoxLayout(
-                    orientation='horizontal',
-                    size_hint_y=None,
-                    height=dp(100),
-                    spacing=dp(8)
-                )
+                # Create beautiful song card
+                song_card = BeautifulCard(size_hint_y=None, height=dp(120))
+                song_layout = BoxLayout(orientation='horizontal', padding=dp(15), spacing=dp(10))
                 
-            # Song info label with content preview
-            content = song.get('content', '')
-            content_preview = content[:100] + "..." if len(content) > 100 else content
-            song_info = Label(
-                text=f"{song.get('title', 'Unknown')}\n{song.get('artist', '')}\n{content_preview}",
-                font_size='16sp',
-                size_hint_x=0.5,
-                color=(0.9, 0.9, 0.9, 1),
-                halign='left',
-                valign='top',
-                text_size=(None, None)
-            )
-            song_info.bind(size=song_info.setter('text_size'))
-            song_box.add_widget(song_info)
-
-            # View button - Shows chord content
-            view_btn = Button(
-                text='🎵\nVIEW',
-                font_size='18sp',
-                size_hint_x=0.25,
-                background_color=(0.2, 0.6, 1, 1),
-                background_normal='',
-                bold=True
-            )
-            view_btn.song_data = song
-            view_btn.bind(on_press=self.view_song)
-            song_box.add_widget(view_btn)
-
-            # Delete button - Larger for easier tapping
-            del_btn = Button(
-                text='🗑\nDEL',
-                font_size='18sp',
-                size_hint_x=0.25,
-                background_color=(0.8, 0.2, 0.2, 1),
-                background_normal='',
-                bold=True
-            )
-            del_btn.song_id = song.get('id')
-            del_btn.bind(on_press=self.delete_song)
-            song_box.add_widget(del_btn)
-            
-            self.songs_layout.add_widget(song_box)
+                # Song info section
+                info_layout = BoxLayout(orientation='vertical', size_hint_x=0.6, spacing=dp(5))
+                
+                # Song title
+                title_label = BeautifulLabel(
+                    text=song.get('title', 'Unknown'),
+                    font_size=sp(16),
+                    bold=True,
+                    color=(0.2, 0.2, 0.2, 1),
+                    halign='left',
+                    text_size=(None, None)
+                )
+                title_label.bind(size=title_label.setter('text_size'))
+                info_layout.add_widget(title_label)
+                
+                # Artist
+                artist_label = BeautifulLabel(
+                    text=song.get('artist', ''),
+                    font_size=sp(14),
+                    color=(0.5, 0.5, 0.5, 1),
+                    halign='left',
+                    text_size=(None, None)
+                )
+                artist_label.bind(size=artist_label.setter('text_size'))
+                info_layout.add_widget(artist_label)
+                
+                # Content preview
+                content = song.get('content', '') or ''
+                content_preview = content[:80] + "..." if len(content) > 80 else content
+                content_label = BeautifulLabel(
+                    text=content_preview,
+                    font_size=sp(12),
+                    color=(0.6, 0.6, 0.6, 1),
+                    halign='left',
+                    text_size=(None, None)
+                )
+                content_label.bind(size=content_label.setter('text_size'))
+                info_layout.add_widget(content_label)
+                
+                song_layout.add_widget(info_layout)
+                
+                # Action buttons
+                btn_layout = BoxLayout(orientation='horizontal', size_hint_x=0.4, spacing=dp(8))
+                
+                # View button
+                view_btn = BeautifulButton(
+                    text='🎵\nVIEW',
+                    font_size=sp(12),
+                    bold=True,
+                    color=(1, 1, 1, 1),
+                    size_hint_x=0.5
+                )
+                view_btn.song_data = song
+                view_btn.bind(on_press=self.view_song)
+                btn_layout.add_widget(view_btn)
+                
+                # Delete button
+                del_btn = BeautifulButton(
+                    text='🗑\nDEL',
+                    font_size=sp(12),
+                    bold=True,
+                    color=(1, 1, 1, 1),
+                    size_hint_x=0.5
+                )
+                del_btn.song_id = song.get('id')
+                del_btn.bind(on_press=self.delete_song)
+                btn_layout.add_widget(del_btn)
+                
+                song_layout.add_widget(btn_layout)
+                song_card.add_widget(song_layout)
+                self.songs_layout.add_widget(song_card)
                 
         except Exception as e:
             print(f"Library Error: {e}")
@@ -902,12 +1208,12 @@ class ChordImporterApp(App):
     """Main Kivy application - Mobile Optimized"""
     
     def build(self):
-        """Build the app with mobile optimizations"""
-        # Set window background color
-        Window.clearcolor = (0.1, 0.1, 0.15, 1)
+        """Build the beautiful app with mobile optimizations"""
+        # Set beautiful gradient background
+        Window.clearcolor = (0.95, 0.95, 0.98, 1)  # Light gray background
         
         # Create screen manager with smooth transitions
-        sm = ScreenManager(transition=SlideTransition(direction='left', duration=0.3))
+        sm = ScreenManager(transition=SlideTransition(direction='left', duration=0.4))
         sm.add_widget(TunerScreen(name='tuner'))
         sm.add_widget(SearchScreen(name='search'))
         sm.add_widget(LibraryScreen(name='library'))

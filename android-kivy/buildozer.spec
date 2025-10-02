@@ -18,11 +18,11 @@ source.main = main.py
 # Requirements - all Python packages needed
 requirements = python3,kivy==2.3.0,numpy,scipy,requests,beautifulsoup4,audiostream,pyjnius
 
-# Icon (will use default if not provided)
-#icon.filename = %(source.dir)s/data/icon.png
+# Icon
+icon.filename = %(source.dir)s/assets/icon.png
 
 # Presplash (optional)
-#presplash.filename = %(source.dir)s/data/presplash.png
+#presplash.filename = %(source.dir)s/assets/presplash.png
 
 # Orientation - can be portrait, landscape, or all
 orientation = portrait

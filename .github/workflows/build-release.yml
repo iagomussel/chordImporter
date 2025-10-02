@@ -1,8 +1,13 @@
-name: Build and Release
+name: Build Desktop Applications
 
 on:
   push:
     branches: [ master ]
+    paths:
+      - 'chord_importer/**'
+      - 'ChordImporter.spec'
+      - 'requirements.txt'
+      - '.github/workflows/build-release.yml'
   workflow_dispatch:
 
 permissions:
