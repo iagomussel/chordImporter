@@ -1,0 +1,19 @@
+# Kivy and Android build tools
+kivy[base]==2.3.0
+buildozer==1.5.0
+cython==3.0.11
+
+# Audio processing (Android compatible)
+numpy==2.3.3
+scipy==1.16.2
+
+# Web scraping (for chord search)
+requests==2.32.3
+beautifulsoup4==4.12.3
+
+# Android specific
+pyjnius==1.6.1
+
+# For desktop testing (optional)
+sounddevice==0.5.2
+
