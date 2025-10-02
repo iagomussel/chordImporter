@@ -4,8 +4,8 @@ buildozer==1.5.0
 cython==3.0.11
 
 # Audio processing (Android compatible)
+# Note: Do NOT include SciPy for Android builds (requires legacy NDK r21e with gfortran)
 numpy==2.3.3
-scipy==1.16.2
 
 # Web scraping (for chord search)
 requests==2.32.3
