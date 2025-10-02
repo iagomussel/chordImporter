@@ -31,6 +31,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -47,6 +57,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip wheel
           pip install -r requirements.txt
+
+      - name: Sanity check imports
+        run: |
+          python - << 'PY'
+          import importlib
+          mods = [
+              'chord_importer',
+              'chord_importer.ui.main_dashboard',
+              'chord_importer.models.audio',
+              'chord_importer.services.serper',
+          ]
+          for m in mods:
+              importlib.import_module(m)
+          print('Imports OK')
+          PY
 
       - name: Build with PyInstaller
         run: |
@@ -117,4 +142,3 @@ jobs:
           artifacts: |
             artifacts/build-ubuntu-latest/MusicalToolsSuite-*.tar.gz,
             artifacts/build-windows-latest/MusicalToolsSuite-*.zip
-
