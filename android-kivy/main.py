@@ -158,8 +158,8 @@ class HPSDetector:
         note_num = 12 * np.log2(frequency / 440.0) + 69
         note_idx = int(round(note_num))
         
-        # Calculate cents offset
-        cents = 100 * (note_num - note_idx)
+        # Calculate cents offset (convert to Python float)
+        cents = float(100 * (note_num - note_idx))
         
         # Get note name with octave
         note_name = note_names[note_idx % 12]
