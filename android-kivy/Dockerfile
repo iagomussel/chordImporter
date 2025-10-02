@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV ANDROID_HOME=/opt/android-sdk
 ENV PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+ENV BUILDozer_ALLOW_ROOT=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
