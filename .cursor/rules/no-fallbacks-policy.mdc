@@ -30,4 +30,4 @@ This project has a **ZERO TOLERANCE** policy for fallbacks. All dependencies MUS
 
 3. **NO "smart" selection systems** that choose between implementations
 4. **NO runtime dependency checking** with fallback behavior
-5. **NO SIMULATE THE OUTPURT WITH HARD CODED THINGS**
+5. **NO SIMULATE THE OUTPUT WITH HARD CODED THINGS**
