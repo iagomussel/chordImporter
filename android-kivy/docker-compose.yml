@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  buildozer:
+    build: .
+    container_name: chordimporter-android-builder
+    volumes:
+      - .:/app
+      - ~/.buildozer:/root/.buildozer
+      - ~/.android:/root/.android
+    environment:
+      - ANDROID_HOME=/usr/lib/android-sdk
+      - PATH=/usr/lib/android-sdk/tools:/usr/lib/android-sdk/platform-tools:$PATH
+    working_dir: /app
+    command: buildozer android debug
+    networks:
+      - buildozer-network
+
+networks:
+  buildozer-network:
+    driver: bridge
