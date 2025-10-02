@@ -1162,9 +1162,9 @@ For more information, visit our documentation."""
             if source_id:
                 # Import the specific search function
                 try:
-                    from .serper import search_with_source_dorks
+                    from ..services.serper import search_with_source_dorks
                 except ImportError:
-                    from chord_importer.serper import search_with_source_dorks
+                    from chord_importer.services.serper import search_with_source_dorks
                 
                 results = search_with_source_dorks(query, source_id)
             else:

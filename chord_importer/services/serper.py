@@ -463,9 +463,9 @@ def search_with_source_dorks(query: str, source_id: Optional[str] = None, countr
     try:
         # Import source manager
         try:
-            from .source_configs import get_source_manager
+            from ..models.source_configs import get_source_manager
         except ImportError:
-            from chord_importer.source_configs import get_source_manager
+            from chord_importer.models.source_configs import get_source_manager
         
         source_manager = get_source_manager()
         all_results = []
