@@ -59,8 +59,8 @@ except ImportError as e:
             pass
         def detect_frequency(self, audio_data):
             return 440.0
-    
-    class AudioInput:
+
+class AudioInput:
         def __init__(self):
             pass
         def start_recording(self):
@@ -84,20 +84,32 @@ except ImportError as e:
             })
     
     def search_cifraclub(query):
-        return []
+        """Real search function using serper service"""
+        try:
+            # Import the real serper service
+            from chord_importer.services.serper import search_cifraclub as real_search
+            return real_search(query)
+        except Exception as e:
+            raise RuntimeError(
+                f"Search failed: {e}\n\n"
+                "Please check:\n"
+                "1. Serper API key is configured in settings\n"
+                "2. Network connectivity is available\n"
+                "3. API key is valid and has credits"
+            )
 
 
 def open_url(url):
-    """Open URL using Android Intent or desktop fallback"""
-    if ANDROID_BROWSER:
-        try:
-            intent = Intent(Intent.ACTION_VIEW)
-            intent.setData(Uri.parse(url))
-            PythonActivity.mActivity.startActivity(intent)
-        except Exception as e:
-            print(f"Error opening URL: {e}")
-    else:
-        webbrowser.open(url)
+    """Open URL using Android Intent - no fallbacks"""
+    if not ANDROID_BROWSER:
+        raise RuntimeError("URL opening requires Android browser. This app must run on Android device.")
+    
+    try:
+        intent = Intent(Intent.ACTION_VIEW)
+        intent.setData(Uri.parse(url))
+        PythonActivity.mActivity.startActivity(intent)
+    except Exception as e:
+        raise RuntimeError(f"Failed to open URL on Android: {e}")
 
 
 class SimpleButton(Button):
@@ -277,13 +289,18 @@ class TunerScreen(Screen):
         try:
             if ANDROID_AUDIO:
                 self.audio_input = get_input(callback=self.audio_callback, channels=1, rate=44100, buffersize=1024)
-                self.audio_input.start()
+            self.audio_input.start()
             else:
-                # Desktop fallback - simulate audio
-                Clock.schedule_interval(self.simulate_audio, 0.1)
+                # No fallback - real audio required
+                self.is_recording = False
+                self.start_button.text = 'START'
+                self.status_label.text = "ERROR: Real audio input required on Android device"
+                raise RuntimeError("Real microphone access required. This app must run on Android with microphone permissions.")
         except Exception as e:
             print(f"Audio error: {e}")
             self.status_label.text = f"Audio error: {e}"
+            self.is_recording = False
+            self.start_button.text = 'START'
     
     def stop_tuning(self, instance):
         """Stop tuning"""
@@ -292,8 +309,8 @@ class TunerScreen(Screen):
         self.status_label.text = 'Tuning stopped'
         
         try:
-            if self.audio_input:
-                self.audio_input.stop()
+        if self.audio_input:
+            self.audio_input.stop()
                 self.audio_input = None
             else:
                 Clock.unschedule(self.simulate_audio)
@@ -310,14 +327,14 @@ class TunerScreen(Screen):
         self.process_audio(audio_data)
     
     def simulate_audio(self, dt):
-        """Simulate audio for desktop testing"""
+        """Audio simulation not available - real audio required"""
         if not self.is_recording:
             return
         
-        # Generate test frequency
-        import random
-        freq = 440.0 + random.uniform(-10, 10)
-        self.process_audio(np.array([freq]))
+        # No fallback - real audio required
+        self.stop_tuning(None)
+        self.status_label.text = "ERROR: Real audio input required"
+        raise RuntimeError("Audio simulation disabled. Real microphone access required for tuning.")
     
     def process_audio(self, audio_data):
         """Process audio data"""
@@ -351,13 +368,13 @@ class TunerScreen(Screen):
         self.cents_off = cents
         
         # Update status
-        if abs(cents) < 5:
+                if abs(cents) < 5:
             self.status_label.text = 'In tune!'
             self.note_label.color = (0, 1, 0, 1)  # Green
-        elif abs(cents) < 20:
+                elif abs(cents) < 20:
             self.status_label.text = f'Close! {cents:+.0f} cents'
             self.note_label.color = (1, 0.5, 0, 1)  # Orange
-        else:
+                else:
             self.status_label.text = f'Off by {cents:+.0f} cents'
             self.note_label.color = (1, 0, 0, 1)  # Red
     
@@ -433,6 +450,12 @@ class SearchScreen(Screen):
         )
         nav_layout.add_widget(library_btn)
         
+        settings_btn = SimpleButton(
+            text='SETTINGS',
+            on_press=self.go_to_settings
+        )
+        nav_layout.add_widget(settings_btn)
+        
         main_layout.add_widget(nav_layout)
         
         self.add_widget(main_layout)
@@ -479,7 +502,7 @@ class SearchScreen(Screen):
             error = SimpleLabel(
                 text=f'Search error: {e}',
                 font_size=sp(16),
-                size_hint_y=None,
+                    size_hint_y=None,
                 height=dp(40)
             )
             self.results_layout.add_widget(error)
@@ -548,7 +571,7 @@ class SearchScreen(Screen):
                 height=dp(30)
             )
             self.results_layout.add_widget(success)
-            
+
         except Exception as e:
             print(f"Save error: {e}")
     
@@ -561,10 +584,201 @@ class SearchScreen(Screen):
     def go_to_tuner(self, instance):
         """Go to tuner screen"""
         self.manager.current = 'tuner'
-    
+
     def go_to_library(self, instance):
         """Go to library screen"""
         self.manager.current = 'library'
+
+    def go_to_settings(self, instance):
+        """Go to settings screen"""
+        self.manager.current = 'settings'
+    
+    
+class SettingsScreen(Screen):
+    """Settings screen for API configuration"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.build_ui()
+    
+    def build_ui(self):
+        """Build the settings UI"""
+        main_layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
+        
+        # Title
+        title = SimpleLabel(
+            text='Settings',
+            size_hint_y=None,
+            height=40,
+            font_size=24,
+            bold=True
+        )
+        main_layout.add_widget(title)
+        
+        # API Configuration Card
+        api_card = SimpleCard()
+        api_layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
+        
+        api_title = SimpleLabel(
+            text='API Configuration',
+            size_hint_y=None,
+            height=30,
+            font_size=18,
+            bold=True
+        )
+        api_layout.add_widget(api_title)
+        
+        # Serper API Key
+        serper_label = SimpleLabel(
+            text='Serper API Key:',
+            size_hint_y=None,
+            height=25,
+            font_size=14
+        )
+        api_layout.add_widget(serper_label)
+        
+        self.api_key_input = TextInput(
+            hint_text='Enter your Serper API key',
+            size_hint_y=None,
+            height=40,
+            multiline=False,
+            password=True
+        )
+        api_layout.add_widget(self.api_key_input)
+        
+        # API Key Info
+        info_label = SimpleLabel(
+            text='Get your free API key at: https://serper.dev',
+            size_hint_y=None,
+            height=25,
+            font_size=12,
+            color=(0.6, 0.6, 0.6, 1)
+        )
+        api_layout.add_widget(info_label)
+        
+        # Save Button
+        save_button = SimpleButton(
+            text='Save API Key',
+            size_hint_y=None,
+            height=40
+        )
+        save_button.bind(on_press=self.save_api_key)
+        api_layout.add_widget(save_button)
+        
+        api_card.add_widget(api_layout)
+        main_layout.add_widget(api_card)
+        
+        # Status Card
+        status_card = SimpleCard()
+        status_layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
+        
+        status_title = SimpleLabel(
+            text='Status',
+            size_hint_y=None,
+            height=30,
+            font_size=18,
+            bold=True
+        )
+        status_layout.add_widget(status_title)
+        
+        self.status_label = SimpleLabel(
+            text='API key not configured',
+                    size_hint_y=None,
+            height=25,
+            font_size=14
+        )
+        status_layout.add_widget(self.status_label)
+        
+        # Test Button
+        test_button = SimpleButton(
+            text='Test API Key',
+                    size_hint_y=None,
+            height=40
+        )
+        test_button.bind(on_press=self.test_api_key)
+        status_layout.add_widget(test_button)
+        
+        status_card.add_widget(status_layout)
+        main_layout.add_widget(status_card)
+        
+        # Back Button
+        back_button = SimpleButton(
+            text='Back to Search',
+            size_hint_y=None,
+            height=50
+        )
+        back_button.bind(on_press=self.go_to_search)
+        main_layout.add_widget(back_button)
+        
+        self.add_widget(main_layout)
+        self.load_api_key()
+    
+    def go_to_search(self, instance):
+        """Go to search screen"""
+        self.manager.current = 'search'
+    
+    def load_api_key(self):
+        """Load API key from settings"""
+        try:
+            # Try to load from the original settings system
+            from chord_importer.models.settings import get_settings
+            settings = get_settings()
+            api_key = settings.get_serper_api_key()
+            if api_key:
+                self.api_key_input.text = api_key
+                self.status_label.text = 'API key loaded from settings'
+                self.status_label.color = (0, 0.8, 0, 1)  # Green
+            else:
+                self.status_label.text = 'No API key configured'
+                self.status_label.color = (0.8, 0, 0, 1)  # Red
+        except Exception as e:
+            self.status_label.text = f'Error loading settings: {e}'
+            self.status_label.color = (0.8, 0, 0, 1)  # Red
+    
+    def save_api_key(self, instance):
+        """Save API key to settings"""
+        api_key = self.api_key_input.text.strip()
+        if not api_key:
+            self.status_label.text = 'Please enter an API key'
+            self.status_label.color = (0.8, 0, 0, 1)  # Red
+            return
+        
+        try:
+            # Save to the original settings system
+            from chord_importer.models.settings import get_settings
+            settings = get_settings()
+            settings.set_serper_api_key(api_key)
+            settings.save_settings()
+            
+            self.status_label.text = 'API key saved successfully!'
+            self.status_label.color = (0, 0.8, 0, 1)  # Green
+        except Exception as e:
+            self.status_label.text = f'Error saving API key: {e}'
+            self.status_label.color = (0.8, 0, 0, 1)  # Red
+    
+    def test_api_key(self, instance):
+        """Test the API key"""
+        api_key = self.api_key_input.text.strip()
+        if not api_key:
+            self.status_label.text = 'Please enter an API key first'
+            self.status_label.color = (0.8, 0, 0, 1)  # Red
+            return
+        
+        try:
+            # Test with a simple search
+            import requests
+            headers = {"X-API-KEY": api_key, "Content-Type": "application/json"}
+            payload = {"q": "test", "gl": "br", "hl": "pt-br", "num": 1}
+            response = requests.post("https://google.serper.dev/search", headers=headers, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                self.status_label.text = 'API key is working!'
+                self.status_label.color = (0, 0.8, 0, 1)  # Green
+            else:
+                self.status_label.text = f'API error: {response.status_code}'
+                self.status_label.color = (0.8, 0, 0, 1)  # Red
+        except Exception as e:
+            self.status_label.text = f'Test failed: {e}'
+            self.status_label.color = (0.8, 0, 0, 1)  # Red
 
 
 class LibraryScreen(Screen):
@@ -736,6 +950,7 @@ class ChordImporterApp(App):
         sm.add_widget(TunerScreen(name='tuner'))
         sm.add_widget(SearchScreen(name='search'))
         sm.add_widget(LibraryScreen(name='library'))
+        sm.add_widget(SettingsScreen(name='settings'))
         
         return sm
 
