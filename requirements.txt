@@ -1,6 +1,6 @@
 # Core dependencies - exact versions from working venv
 beautifulsoup4==4.12.3
-requests==2.32.3
+requests==2.32.4
 python-dotenv==1.0.1
 numpy==2.3.3
 sounddevice==0.5.2

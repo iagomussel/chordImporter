@@ -8,7 +8,7 @@ cython==3.0.11
 numpy==2.3.3
 
 # Web scraping (for chord search)
-requests==2.32.3
+requests==2.32.4
 beautifulsoup4==4.12.3
 
 # Android specific
