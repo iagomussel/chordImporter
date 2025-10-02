@@ -625,6 +625,8 @@ class SearchScreen(Screen):
             
         except Exception as e:
             print(f"Error saving to library: {e}")
+            import traceback
+            traceback.print_exc()
             instance.text = '✗\nERROR'
             instance.background_color = (0.8, 0.2, 0.2, 1)
     
@@ -712,7 +714,7 @@ class LibraryScreen(Screen):
             from chord_importer.models.database import get_database
             self.db = get_database()
             
-            songs = self.db.get_all_songs()
+            songs = self.db.get_songs()
             
             if not songs:
                 no_songs = Label(
@@ -776,11 +778,15 @@ class LibraryScreen(Screen):
                 self.songs_layout.add_widget(song_box)
                 
         except Exception as e:
+            print(f"Library Error: {e}")
+            import traceback
+            traceback.print_exc()
+            
             error_label = Label(
-                text=f'Error: {str(e)}',
+                text=f'Library Error:\n{str(e)}\n\nMake sure database is accessible',
                 font_size='14sp',
                 size_hint_y=None,
-                height=60,
+                height=100,
                 color=(1, 0.3, 0.3, 1)
             )
             self.songs_layout.add_widget(error_label)
