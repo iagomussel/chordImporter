@@ -1,0 +1,141 @@
+════════════════════════════════════════════════════════════════
+  CHORDIMPORTER - GET IT ON YOUR PHONE (3 EASY WAYS)
+════════════════════════════════════════════════════════════════
+
+✅ DESKTOP TEST (RUNNING NOW!)
+   The app window should be open on your computer.
+   This is the EXACT same code that runs on Android!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 METHOD 1: EASIEST - NO BUILD NEEDED (10 minutes)
+
+  1. Ask a friend with Linux/Mac to build the APK
+  2. Or use a cloud service (Replit, Colab)
+  3. Download the .apk file
+  4. Email it to yourself
+  5. Open email on phone → tap APK → Install
+  
+  Done! ✓
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 METHOD 2: WSL2 ON WINDOWS (Setup once, use forever)
+
+  PowerShell (as Admin):
+  ┌────────────────────────────────────────┐
+  │ wsl --install                          │
+  │ (restart computer)                     │
+  └────────────────────────────────────────┘
+
+  After restart, Ubuntu terminal:
+  ┌────────────────────────────────────────┐
+  │ cd /mnt/f/projetos/chordImporter/      │
+  │     android-kivy                       │
+  │ sudo apt update                        │
+  │ sudo apt install -y python3-pip        │
+  │     openjdk-11-jdk                     │
+  │ pip3 install buildozer cython          │
+  │ buildozer android debug                │
+  └────────────────────────────────────────┘
+
+  First build: 30-60 minutes (downloads Android SDK)
+  Next builds: 2-5 minutes ⚡
+
+  APK location (in Windows):
+  F:\projetos\chordImporter\android-kivy\bin\chordimporter-*-debug.apk
+
+  Transfer to phone → Install!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 METHOD 3: ONLINE BUILD (No local setup)
+
+  Go to: https://replit.com (free account)
+  
+  Create new Python Repl, paste:
+  ┌────────────────────────────────────────┐
+  │ !apt-get update                        │
+  │ !apt-get install -y openjdk-11-jdk     │
+  │ !pip install buildozer cython          │
+  │                                        │
+  │ (Upload your android-kivy folder)      │
+  │                                        │
+  │ !cd android-kivy && buildozer          │
+  │     android debug                      │
+  └────────────────────────────────────────┘
+
+  Download: bin/chordimporter-*-debug.apk
+  Transfer to phone → Install!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📲 INSTALLING ON ANDROID PHONE
+
+  1. Transfer APK to phone (email, USB, cloud)
+  2. Open file manager app
+  3. Tap the .apk file
+  4. If blocked: Tap Settings → Allow from this source
+  5. Tap Install
+  6. Open app
+  7. Tap Allow when asked for microphone permission
+
+  Done! 🎸
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 WHAT TO TEST
+
+  ✓ Tap START button
+  ✓ Play a guitar note (or sing/whistle)
+  ✓ Frequency shows (e.g., "110.00 Hz")
+  ✓ Note name appears (e.g., "A2")
+  ✓ Color turns green when in tune
+  ✓ Tap STOP
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ HELP
+
+  Can't install APK?
+  → Settings → Security → Enable "Unknown Sources"
+  
+  Microphone not working?
+  → Settings → Apps → ChordImporter → Permissions → Microphone
+  
+  Buildozer fails?
+  → See: WINDOWS_QUICK_START.md for detailed troubleshooting
+  
+  Need detailed guide?
+  → See: QUICK_TEST_GUIDE.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 RECOMMENDATION
+
+  Since you're on Windows:
+  
+  TODAY:     Test on desktop (already running!)
+             Make any changes you want
+             
+  THIS WEEK: Set up WSL2 (10 min setup)
+             Build first APK (60 min first time)
+             Install on phone
+             Test!
+             
+  ONGOING:   Develop on desktop (fast!)
+             Rebuild APK occasionally (2-5 min)
+             Test on phone
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The app on your desktop RIGHT NOW is the same code that runs
+on Android. No changes needed! 🎉
+
+For detailed guides, see:
+  • WINDOWS_QUICK_START.md (Windows-specific)
+  • QUICK_TEST_GUIDE.md (Full testing guide)
+  • README.md (Complete documentation)
+
+════════════════════════════════════════════════════════════════
+

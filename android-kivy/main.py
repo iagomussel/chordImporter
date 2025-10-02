@@ -141,9 +141,9 @@ class HPSDetector:
         peak_idx = np.argmax(hps[min_freq_idx:max_freq_idx]) + min_freq_idx
         
         if peak_idx < len(freqs):
-            self.current_frequency = freqs[peak_idx]
+            self.current_frequency = float(freqs[peak_idx])
         
-        return self.current_frequency
+        return float(self.current_frequency)
     
     @staticmethod
     def freq_to_note(frequency):
@@ -327,9 +327,10 @@ class TunerScreen(Screen):
             
             if freq > 50:  # Valid frequency
                 note, cents = HPSDetector.freq_to_note(freq)
-                self.frequency = freq
-                self.note_name = note
-                self.cents_off = cents
+                # Convert numpy types to Python native types for Kivy
+                self.frequency = float(freq)
+                self.note_name = str(note)
+                self.cents_off = float(cents)
                 
                 # Update status based on tuning accuracy
                 if abs(cents) < 5:
