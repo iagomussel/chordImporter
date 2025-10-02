@@ -594,35 +594,49 @@ class SearchScreen(Screen):
             self.results_layout.add_widget(error_label)
     
     def save_to_library(self, instance):
-        """Save search result to library"""
+        """Save search result to library - Extract chord content from website"""
         try:
             from chord_importer.models.database import get_database
+            from chord_importer.services.flexible_extractor import extract_with_flexible_config
             db = get_database()
-            
+
             result = instance.result_data
-            
-            # Parse title and artist
-            title_parts = result.title.split(' - ')
-            if len(title_parts) >= 2:
-                artist = title_parts[0].strip()
-                title = ' - '.join(title_parts[1:]).strip()
-            else:
-                title = result.title
-                artist = "Unknown"
-            
-            # Save to database
+            url = result.url
+
+            # Show extracting status
+            instance.text = '⏳\nEXTRACTING'
+            instance.background_color = (0.8, 0.6, 0.2, 1)
+
+            # Extract chord content from the website
+            title, artist, content = extract_with_flexible_config(url)
+
+            # If extraction failed, use fallback data
+            if not content or not content.strip():
+                print(f"Failed to extract content from {url}, using fallback")
+                # Parse title and artist from search result
+                title_parts = result.title.split(' - ')
+                if len(title_parts) >= 2:
+                    artist = title_parts[0].strip()
+                    title = ' - '.join(title_parts[1:]).strip()
+                else:
+                    title = result.title
+                    artist = "Unknown"
+                content = f"Content extraction failed. Original URL: {url}"
+
+            # Save to database with extracted content
             db.save_song(
                 title=title,
                 artist=artist,
-                url=result.url,
-                source='search'
+                url=url,
+                source='search',
+                content=content  # Save the extracted chord content
             )
-            
+
             # Visual feedback
             instance.text = '✓\nSAVED'
-            instance.background_color = (0.3, 0.3, 0.3, 1)
+            instance.background_color = (0.2, 0.8, 0.2, 1)
             instance.disabled = True
-            
+
         except Exception as e:
             print(f"Error saving to library: {e}")
             import traceback
@@ -736,46 +750,48 @@ class LibraryScreen(Screen):
                     spacing=dp(8)
                 )
                 
-                # Song info label (not clickable)
-                song_info = Label(
-                    text=f"{song.get('title', 'Unknown')}\n{song.get('artist', '')}",
-                    font_size='18sp',
-                    size_hint_x=0.5,
-                    color=(0.9, 0.9, 0.9, 1),
-                    halign='left',
-                    valign='middle',
-                    text_size=(None, None)
-                )
-                song_info.bind(size=song_info.setter('text_size'))
-                song_box.add_widget(song_info)
-                
-                # Open button - Opens in browser
-                open_btn = Button(
-                    text='🌐\nOPEN',
-                    font_size='18sp',
-                    size_hint_x=0.25,
-                    background_color=(0.2, 0.6, 1, 1),
-                    background_normal='',
-                    bold=True
-                )
-                open_btn.song_data = song
-                open_btn.bind(on_press=self.view_song)
-                song_box.add_widget(open_btn)
-                
-                # Delete button - Larger for easier tapping
-                del_btn = Button(
-                    text='🗑\nDEL',
-                    font_size='18sp',
-                    size_hint_x=0.25,
-                    background_color=(0.8, 0.2, 0.2, 1),
-                    background_normal='',
-                    bold=True
-                )
-                del_btn.song_id = song.get('id')
-                del_btn.bind(on_press=self.delete_song)
-                song_box.add_widget(del_btn)
-                
-                self.songs_layout.add_widget(song_box)
+            # Song info label with content preview
+            content = song.get('content', '')
+            content_preview = content[:100] + "..." if len(content) > 100 else content
+            song_info = Label(
+                text=f"{song.get('title', 'Unknown')}\n{song.get('artist', '')}\n{content_preview}",
+                font_size='16sp',
+                size_hint_x=0.5,
+                color=(0.9, 0.9, 0.9, 1),
+                halign='left',
+                valign='top',
+                text_size=(None, None)
+            )
+            song_info.bind(size=song_info.setter('text_size'))
+            song_box.add_widget(song_info)
+
+            # View button - Shows chord content
+            view_btn = Button(
+                text='🎵\nVIEW',
+                font_size='18sp',
+                size_hint_x=0.25,
+                background_color=(0.2, 0.6, 1, 1),
+                background_normal='',
+                bold=True
+            )
+            view_btn.song_data = song
+            view_btn.bind(on_press=self.view_song)
+            song_box.add_widget(view_btn)
+
+            # Delete button - Larger for easier tapping
+            del_btn = Button(
+                text='🗑\nDEL',
+                font_size='18sp',
+                size_hint_x=0.25,
+                background_color=(0.8, 0.2, 0.2, 1),
+                background_normal='',
+                bold=True
+            )
+            del_btn.song_id = song.get('id')
+            del_btn.bind(on_press=self.delete_song)
+            song_box.add_widget(del_btn)
+            
+            self.songs_layout.add_widget(song_box)
                 
         except Exception as e:
             print(f"Library Error: {e}")
@@ -792,11 +808,84 @@ class LibraryScreen(Screen):
             self.songs_layout.add_widget(error_label)
     
     def view_song(self, instance):
-        """View song details"""
+        """View song details - Show chord content"""
         song = instance.song_data
+        content = song.get('content', '')
         url = song.get('url', '')
-        if url:
+        
+        if content and content.strip() and not content.startswith("Content extraction failed"):
+            # Show chord content in a popup
+            self.show_chord_content(song.get('title', 'Unknown'), content)
+        elif url:
+            # Fallback to opening URL if no content
             open_url(url)
+        else:
+            print("No content or URL available")
+    
+    def show_chord_content(self, title, content):
+        """Show chord content in a popup window"""
+        from kivy.uix.popup import Popup
+        from kivy.uix.scrollview import ScrollView
+        from kivy.uix.label import Label
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        
+        # Create content layout
+        content_layout = BoxLayout(orientation='vertical', spacing=dp(10))
+        
+        # Title
+        title_label = Label(
+            text=f"🎵 {title}",
+            font_size='20sp',
+            size_hint_y=None,
+            height=dp(50),
+            color=(0.9, 0.9, 0.9, 1),
+            bold=True
+        )
+        content_layout.add_widget(title_label)
+        
+        # Scrollable content
+        scroll = ScrollView(
+            size_hint=(1, 1),
+            scroll_type=['bars'],
+            bar_width=dp(10)
+        )
+        
+        content_text = Label(
+            text=content,
+            font_size='14sp',
+            text_size=(None, None),
+            halign='left',
+            valign='top',
+            color=(0.8, 0.8, 0.8, 1),
+            markup=True
+        )
+        content_text.bind(size=content_text.setter('text_size'))
+        scroll.add_widget(content_text)
+        content_layout.add_widget(scroll)
+        
+        # Close button
+        close_btn = Button(
+            text='CLOSE',
+            size_hint_y=None,
+            height=dp(50),
+            font_size='18sp',
+            background_color=(0.2, 0.6, 1, 1),
+            background_normal='',
+            bold=True
+        )
+        content_layout.add_widget(close_btn)
+        
+        # Create popup
+        popup = Popup(
+            title='',
+            content=content_layout,
+            size_hint=(0.9, 0.8),
+            auto_dismiss=False
+        )
+        
+        close_btn.bind(on_press=popup.dismiss)
+        popup.open()
     
     def delete_song(self, instance):
         """Delete a song"""
