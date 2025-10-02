@@ -60,7 +60,7 @@ except ImportError as e:
         def detect_frequency(self, audio_data):
             return 440.0
 
-class AudioInput:
+    class AudioInput:
         def __init__(self):
             pass
         def start_recording(self):
@@ -69,34 +69,38 @@ class AudioInput:
             pass
         def get_audio_data(self):
             return []
+
+
+class Database:
+    def __init__(self):
+        self.songs = []
     
-    class Database:
-        def __init__(self):
-            self.songs = []
-        def get_all_songs(self):
-            return self.songs
-        def save_song(self, title, artist, content, url):
-            self.songs.append({
-                'title': title,
-                'artist': artist,
-                'content': content,
-                'url': url
-            })
+    def get_all_songs(self):
+        return self.songs
     
-    def search_cifraclub(query):
-        """Real search function using serper service"""
-        try:
-            # Import the real serper service
-            from chord_importer.services.serper import search_cifraclub as real_search
-            return real_search(query)
-        except Exception as e:
-            raise RuntimeError(
-                f"Search failed: {e}\n\n"
-                "Please check:\n"
-                "1. Serper API key is configured in settings\n"
-                "2. Network connectivity is available\n"
-                "3. API key is valid and has credits"
-            )
+    def save_song(self, title, artist, content, url):
+        self.songs.append({
+            'title': title,
+            'artist': artist,
+            'content': content,
+            'url': url
+        })
+
+
+def search_cifraclub(query):
+    """Real search function using serper service"""
+    try:
+        # Import the real serper service
+        from chord_importer.services.serper import search_cifraclub as real_search
+        return real_search(query)
+    except Exception as e:
+        raise RuntimeError(
+            f"Search failed: {e}\n\n"
+            "Please check:\n"
+            "1. Serper API key is configured in settings\n"
+            "2. Network connectivity is available\n"
+            "3. API key is valid and has credits"
+        )
 
 
 def open_url(url):
@@ -132,6 +136,33 @@ class SimpleLabel(Label):
         self.text_size = (None, None)
         self.halign = 'center'
         self.valign = 'middle'
+
+
+class SimpleCard(Widget):
+    """Simple card widget with background"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(size=self.update_canvas, pos=self.update_canvas)
+        self.update_canvas()
+    
+    def update_canvas(self, *args):
+        self.canvas.clear()
+        if not self.size[0] or not self.size[1]:
+            return
+        
+        with self.canvas:
+            Color(1, 1, 1, 1)  # White background
+            RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(8)]
+            )
+            Color(0.9, 0.9, 0.9, 1)  # Light border
+            RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(8)]
+            )
 
 
 class FrequencyMeter(Widget):
@@ -289,7 +320,7 @@ class TunerScreen(Screen):
         try:
             if ANDROID_AUDIO:
                 self.audio_input = get_input(callback=self.audio_callback, channels=1, rate=44100, buffersize=1024)
-            self.audio_input.start()
+                self.audio_input.start()
             else:
                 # No fallback - real audio required
                 self.is_recording = False
@@ -309,8 +340,8 @@ class TunerScreen(Screen):
         self.status_label.text = 'Tuning stopped'
         
         try:
-        if self.audio_input:
-            self.audio_input.stop()
+            if self.audio_input:
+                self.audio_input.stop()
                 self.audio_input = None
             else:
                 Clock.unschedule(self.simulate_audio)
@@ -368,13 +399,13 @@ class TunerScreen(Screen):
         self.cents_off = cents
         
         # Update status
-                if abs(cents) < 5:
+        if abs(cents) < 5:
             self.status_label.text = 'In tune!'
             self.note_label.color = (0, 1, 0, 1)  # Green
-                elif abs(cents) < 20:
+        elif abs(cents) < 20:
             self.status_label.text = f'Close! {cents:+.0f} cents'
             self.note_label.color = (1, 0.5, 0, 1)  # Orange
-                else:
+        else:
             self.status_label.text = f'Off by {cents:+.0f} cents'
             self.note_label.color = (1, 0, 0, 1)  # Red
     
@@ -682,7 +713,7 @@ class SettingsScreen(Screen):
         
         self.status_label = SimpleLabel(
             text='API key not configured',
-                    size_hint_y=None,
+            size_hint_y=None,
             height=25,
             font_size=14
         )
@@ -691,7 +722,7 @@ class SettingsScreen(Screen):
         # Test Button
         test_button = SimpleButton(
             text='Test API Key',
-                    size_hint_y=None,
+            size_hint_y=None,
             height=40
         )
         test_button.bind(on_press=self.test_api_key)
